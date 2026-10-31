@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit " ~ sub.number if sub else "New subscription" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit " ~ sub.number if sub else "New subscription",
+   ("Started from the " ~ template.name ~ " template. Change anything before saving." if template and not sub else None),
+   [("Subscriptions", url_for('subscriptions.index'))] + ([(sub.number, url_for('subscriptions.detail', sub_id=sub.id))] if sub else [])) }}
+
+{% if not sub %}
+<form method="get" class="panel mb-3">
+  <div class="filters border-0">
+    {% if form.values.get('customer_id') %}<input type="hidden" name="customer_id" value="{{ form.values.get('customer_id') }}">{% endif %}
+    <div class="grow">
+      <label class="form-label" for="template_id">Start from a quotation template</label>
+      <select class="form-select" id="template_id" name="template_id" data-autosubmit>
+        <option value="">Blank subscription</option>
+        {% for t in templates %}<option value="{{ t.id }}" {{ 'selected' if template and template.id == t.id }}>{{ t.name }} ({{ t.plan.name }}, valid {{ t.validity_days }} days)</option>{% endfor %}
+      </select>
+    </div>
+    <noscript><button class="btn btn-outline-primary" type="submit">Load template</button></noscript>
+  </div>
+</form>
+{% endif %}
+
+<form method="post" novalidate>
+  {{ m.csrf() }}
+  {% if template and not sub %}<input type="hidden" name="template_id" value="{{ template.id }}">{% endif %}
+  {{ m.form_errors(form) }}
+  <section class="panel">
+    <div class="panel-body">
+      <div class="row">
+        <div class="col-md-6">
+          {% set customer_options = [] %}{% for c in customers %}{% set _ = customer_options.append((c.id, c.display_name ~ (" (" ~ c.name ~ ")" if c.company else ""))) %}{% endfor %}
+          {{ m.select(form, "customer_id", "Customer", customer_options, required=True, placeholder="Choose a customer") }}
+        </div>
+        <div class="col-md-6">
+          {% set current_plan = form.values.get('plan_id', '')|string %}
+          <div class="mb-3">
+            {{ m.label("plan_id", "Plan", True) }}
+            <select class="form-select{% if form.errors.get('plan_id') %} is-invalid{% endif %}" id="f-plan_id" name="plan_id" required data-plan-select>
+              <option value="">Choose a plan</option>
+              {% for p in plans %}
+              <option value="{{ p.id }}" data-price="{{ p.price }}" data-min="{{ p.min_quantity }}" data-period="{{ p.period_unit }}"
+                data-billing="{{ p.billing_period }}" data-term="{{ default_terms[p.billing_period] }}" {{ 'selected' if current_plan == p.id|string }}>
+                {{ p.name }} ({{ p.price|money }} per {{ p.period_unit }}, min {{ p.min_quantity }})</option>
+              {% endfor %}
+            </select>
+            {{ m.field_error(form, "plan_id") }}
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">{{ m.input(form, "start_date", "Start date", type="date", required=True, attrs={"data-start-date": "1"}) }}</div>
+        <div class="col-sm-6 col-lg-3">{{ m.input(form, "expiry_date", "Expiry date", type="date", help="Empty means no end date.", attrs={"data-expiry-date": "1"}) }}</div>
+        <div class="col-sm-6 col-lg-3">{% set term_options = [] %}{% for days, text in PAYMENT_TERMS.items() %}{% set _ = term_options.append((days, text)) %}{% endfor %}
+          {{ m.select(form, "payment_term_days", "Payment terms", term_options, required=True) }}</div>
+        <div class="col-sm-6 col-lg-3">{{ m.input(form, "quotation_valid_until", "Quote valid until", type="date") }}</div>
+      </div>
+      {{ m.textarea(form, "notes", "Notes", rows=2, maxlength=2000, help="Shown on the quotation and invoices.") }}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2 class="panel-title">Product lines</h2><span class="text-muted small">Price and tax fill in from the catalog. You can change the price for this customer.</span></div>
+    <div class="panel-body">
+      {% include "_lines_editor.html" %}
+      <div class="alert alert-warning mt-3 mb-0" data-min-qty-note hidden></div>
+      <div class="d-flex justify-content-end mt-3">
+        <table class="totals" data-totals data-default-tax-rate="{{ default_tax_rate }}">
+          <tr><td class="text-muted">Plan fee</td><td data-plan-fee>—</td></tr>
+          <tr><td class="text-muted">Before tax</td><td data-untaxed>—</td></tr>
+          <tr><td class="text-muted">Tax</td><td data-tax>—</td></tr>
+          <tr class="grand"><td>Total per <span data-period>period</span></td><td data-total>—</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+  <div class="form-actions mt-3">
+    <button class="btn btn-primary" type="submit">{{ "Save changes" if sub else "Create draft" }}</button>
+    <a class="btn btn-light" href="{{ url_for('subscriptions.detail', sub_id=sub.id) if sub else url_for('subscriptions.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Suggest an expiry date (one standard term) when the plan or start date changes
+  (function () {
+    var plan = document.querySelector("[data-plan-select]");
+    var start = document.querySelector("[data-start-date]");
+    var expiry = document.querySelector("[data-expiry-date]");
+    if (!plan || !start || !expiry) return;
+    var touched = !!expiry.value;
+    expiry.addEventListener("input", function () { touched = true; });
+    function suggest() {
+      var opt = plan.selectedOptions[0];
+      if (touched || !opt || !opt.value || !start.value) return;
+      var d = new Date(start.value + "T00:00:00");
+      var term = parseInt(opt.dataset.term, 10) || 1;
+      var unit = opt.dataset.billing;
+      if (unit === "daily") d.setDate(d.getDate() + term);
+      else if (unit === "weekly") d.setDate(d.getDate() + 7 * term);
+      else if (unit === "monthly") d.setMonth(d.getMonth() + term);
+      else d.setFullYear(d.getFullYear() + term);
+      d.setDate(d.getDate() - 1);
+      expiry.value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+    plan.addEventListener("change", suggest);
+    start.addEventListener("change", suggest);
+  })();
+</script>
+{% endblock %}

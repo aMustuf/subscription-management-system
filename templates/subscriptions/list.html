@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Subscriptions{% endblock %}
+{% block content %}
+{% call m.page_head("Subscriptions", "Every contract and where it stands, from draft quote to closed.") %}
+  <a class="btn btn-outline-primary" href="{{ url_for('quotes.index') }}">From a template</a>
+  <a class="btn btn-primary" href="{{ url_for('subscriptions.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New subscription</a>
+{% endcall %}
+<section class="panel">
+  <nav class="d-flex flex-wrap gap-2 px-3 pt-3" aria-label="Filter by status">
+    {% set base = page_args(status=None, page=None) %}
+    <a class="btn btn-sm {{ 'btn-primary' if not status else 'btn-light' }}" href="{{ url_for('subscriptions.index', **base) }}">All <span class="opacity-75">{{ total }}</span></a>
+    {% for key, text in SUBSCRIPTION_STATUSES.items() %}
+    <a class="btn btn-sm {{ 'btn-primary' if status == key else 'btn-light' }}" href="{{ url_for('subscriptions.index', **dict(base, status=key)) }}">{{ text }} <span class="opacity-75">{{ counts.get(key, 0) }}</span></a>
+    {% endfor %}
+    <a class="btn btn-sm {{ 'btn-primary' if status == 'due' else 'btn-light' }}" href="{{ url_for('subscriptions.index', **dict(base, status='due')) }}"><i class="bi bi-lightning-charge" aria-hidden="true"></i> Due to bill <span class="opacity-75">{{ due_count }}</span></a>
+  </nav>
+  <form class="filters" method="get" role="search">
+    <input type="hidden" name="status" value="{{ status }}">
+    <div class="grow">
+      <label class="form-label" for="q">Search</label>
+      <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Number, customer or company">
+    </div>
+    <div>
+      <label class="form-label" for="plan">Plan</label>
+      <select class="form-select" id="plan" name="plan" data-autosubmit>
+        <option value="">All plans</option>
+        {% for p in plans %}<option value="{{ p.id }}" {{ 'selected' if plan_id == p.id|string }}>{{ p.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-outline-primary" type="submit">Search</button>
+  </form>
+  {% if pagination.items %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Number</th><th>Customer</th><th>Plan</th><th>Status</th><th>Start</th><th>Next invoice</th><th>Expiry</th><th class="num">Per period</th></tr></thead>
+      <tbody>
+      {% for s in pagination.items %}
+        <tr>
+          <td><a class="row-link mono-id" href="{{ url_for('subscriptions.detail', sub_id=s.id) }}">{{ s.number }}</a></td>
+          <td>{{ s.customer.display_name }}</td>
+          <td>{{ s.plan.name }}</td>
+          <td>{{ m.sub_status(s) }}</td>
+          <td class="text-nowrap">{{ s.start_date|date }}</td>
+          <td class="text-nowrap">{% if s.status in ('active',) and s.next_invoice_date %}{{ s.next_invoice_date|date }}{% if s.next_invoice_date <= today %} {{ m.status('due', 'Due') }}{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="text-nowrap">{{ s.expiry_date|date }}</td>
+          <td class="num">{{ s.amount_total|money }}<span class="cell-sub">per {{ s.plan.period_unit }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pager(pagination, "subscriptions") }}
+  {% else %}
+    {{ m.empty("arrow-repeat", "No subscriptions here", "Change the filters, or start a new subscription from a template.", url_for('subscriptions.create'), "New subscription") }}
+  {% endif %}
+</section>
+{% endblock %}

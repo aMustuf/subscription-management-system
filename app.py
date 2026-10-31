@@ -105,6 +105,11 @@ def create_app(config_class=Config) -> Flask:
 
     register_blueprints(app)
     register_template_helpers(app)
+
+    # Start confirmed subscriptions and auto-close expired ones (runs at most once a minute)
+    from services.subscriptions import housekeeping_once_a_minute
+
+    app.extensions["housekeeping"] = housekeeping_once_a_minute
     register_error_pages(app)
     register_request_hooks(app)
 

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}{{ sub.number }}{% endblock %}
+{% block content %}
+{% call m.page_head(sub.number, sub.customer.display_name ~ " on " ~ sub.plan.name, [("Subscriptions", url_for('subscriptions.index'))]) %}
+  {% if sub.status in ('draft', 'quotation') %}<a class="btn btn-outline-primary" href="{{ url_for('subscriptions.edit', sub_id=sub.id) }}">Edit</a>{% endif %}
+  {% if sub.status == 'active' and endpoint_exists('invoices.create_for_subscription') %}
+  <form method="post" action="{{ url_for('invoices.create_for_subscription', sub_id=sub.id) }}">{{ m.csrf() }}
+    <button class="btn btn-marigold" type="submit"><i class="bi bi-receipt" aria-hidden="true"></i> Create invoice</button></form>
+  {% endif %}
+{% endcall %}
+
+{# Lifecycle rail: Draft -> Quotation -> Confirmed -> Active -> Closed #}
+{% set current_stage = 'active' if sub.status == 'paused' else sub.status %}
+{% set current_index = lifecycle.index(current_stage) %}
+<section class="panel">
+  <div class="panel-body pb-3">
+    <ol class="rail" aria-label="Subscription stage">
+      {% for stage in lifecycle %}
+      {% set state = 'done' if loop.index0 < current_index else ('current' if loop.index0 == current_index else '') %}
+      <li class="rail-step {{ state }}" {% if state == 'current' %}aria-current="step"{% endif %}>
+        <span class="rail-dot" aria-hidden="true"></span>
+        <span class="rail-label">{{ SUBSCRIPTION_STATUSES[stage] }}{% if stage == 'active' and sub.status == 'paused' %} (paused){% endif %}
+          {% if stage_dates.get(stage) and state %}<span class="rail-when">{{ stage_dates[stage]|date }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% if actions or problems %}
+  <div class="panel-footer">
+    {% for p in problems %}<div class="text-danger small mb-2"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> {{ p }}</div>{% endfor %}
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% for a in actions %}
+        {% if a.key == 'close' %}
+          <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#closeModal" {{ 'disabled' if not a.enabled }}>Close subscription</button>
+        {% else %}
+        <form method="post" action="{{ url_for('subscriptions.action', sub_id=sub.id, action=a.key) }}">
+          {{ m.csrf() }}
+          <button class="btn btn-sm {{ 'btn-primary' if a.style == 'primary' else 'btn-outline-primary' }}" type="submit" {{ 'disabled' if not a.enabled }}>{{ a.label }}</button>
+        </form>
+        {% endif %}
+      {% endfor %}
+      {% if sub.status == 'draft' %}
+      <form method="post" action="{{ url_for('subscriptions.delete', sub_id=sub.id) }}" data-confirm="Delete draft {{ sub.number }}?" class="ms-auto">
+        {{ m.csrf() }}<button class="btn btn-sm btn-light" type="submit">Delete draft</button>
+      </form>
+      {% endif %}
+    </div>
+    {% for a in actions if not a.enabled %}<div class="small text-muted mt-2"><i class="bi bi-lock" aria-hidden="true"></i> {{ a.label }}: {{ a.reason }}</div>{% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<div class="row g-3 mt-0">
+  <div class="col-xl-8">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Lines</h2><span class="text-muted small">Billed every {{ sub.plan.period_unit }}</span></div>
+      <div class="table-responsive">
+        <table class="table table-app">
+          <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Unit price</th><th>Tax</th><th class="num">Amount</th></tr></thead>
+          <tbody>
+            {% if sub.plan.price|float > 0 %}
+            <tr><td>Plan fee: {{ sub.plan.name }}<span class="cell-sub">{{ sub.plan.period_label }} billing</span></td><td class="num">1</td>
+              <td class="num">{{ sub.plan.price|money }}</td><td>{{ fee_tax.name if fee_tax else "No tax" }}</td><td class="num">{{ sub.plan.price|money }}</td></tr>
+            {% endif %}
+            {% for line in sub.lines %}
+            <tr class="{{ 'text-muted' if not line.enabled }}">
+              <td>{{ line.label }}{% if not line.enabled %} <span class="tag tag-off">Switched off</span>{% endif %}<span class="cell-sub">{{ line.product.type_label }}</span></td>
+              <td class="num">{{ line.quantity }}</td>
+              <td class="num">{{ line.unit_price|money }}</td>
+              <td>{{ line.tax.name if line.tax else "No tax" }}</td>
+              <td class="num">{{ line.amount|money }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body pt-2">
+        <table class="totals">
+          <tr><td class="text-muted">Before tax</td><td>{{ sub.amount_untaxed|money }}</td></tr>
+          <tr><td class="text-muted">Tax</td><td>{{ sub.amount_tax|money }}</td></tr>
+          <tr class="grand"><td>Total per {{ sub.plan.period_unit }}</td><td>{{ sub.amount_total|money }}</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Invoices</h2></div>
+      {% if invoices %}
+      <div class="table-responsive">
+        <table class="table table-app table-hover">
+          <thead><tr><th>Number</th><th>Period</th><th>Due</th><th>Status</th><th class="num">Total</th><th class="num">Due now</th></tr></thead>
+          <tbody>
+          {% for inv in invoices %}
+            <tr>
+              <td><a class="row-link mono-id" href="{{ url_for('invoices.detail', invoice_id=inv.id) }}">{{ inv.number }}</a></td>
+              <td class="text-nowrap">{{ inv.period_start|date }} – {{ inv.period_end|date }}</td>
+              <td class="text-nowrap">{{ inv.due_date|date }}</td>
+              <td>{{ m.invoice_status(inv) }}</td>
+              <td class="num">{{ inv.amount_total|money }}</td>
+              <td class="num">{{ inv.amount_due|money }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ m.empty("receipt", "No invoices yet", "Invoices are created from this subscription once it's active, on each billing date.") }}
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="col-xl-4">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Details</h2>{{ m.sub_status(sub) }}</div>
+      <div class="panel-body">
+        <dl class="facts">
+          <dt>Customer</dt><dd><a href="{{ url_for('customers.detail', customer_id=sub.customer_id) }}">{{ sub.customer.display_name }}</a></dd>
+          <dt>Plan</dt><dd>{{ sub.plan.name }}<br><span class="text-muted fw-normal small">{{ sub.plan.period_label }}, min {{ sub.plan.min_quantity }} unit{{ "s" if sub.plan.min_quantity != 1 }}</span></dd>
+          <dt>Start</dt><dd>{{ sub.start_date|date }}</dd>
+          <dt>Expiry</dt><dd>{{ sub.expiry_date|date if sub.expiry_date else "No end date" }}{% if sub.is_expired and sub.status != 'closed' %} {{ m.status('overdue', 'Expired') }}{% endif %}</dd>
+          <dt>Payment terms</dt><dd>{{ sub.payment_terms_label }}</dd>
+          {% if sub.status in ('active', 'paused') %}<dt>Next invoice</dt><dd>{{ sub.next_invoice_date|date }}</dd>{% endif %}
+          {% if sub.status in ('draft', 'quotation') %}<dt>Quote valid until</dt><dd>{{ sub.quotation_valid_until|date }}</dd>{% endif %}
+          {% if sub.template %}<dt>Template</dt><dd>{{ sub.template.name }}</dd>{% endif %}
+          <dt>Created by</dt><dd>{{ sub.created_by.name if sub.created_by else "System" }}</dd>
+          {% if sub.close_reason %}<dt>Close reason</dt><dd>{{ sub.close_reason }}</dd>{% endif %}
+        </dl>
+        {% if sub.notes %}<p class="mt-3 mb-0 text-muted small">{{ sub.notes }}</p>{% endif %}
+      </div>
+      <div class="panel-footer small text-muted">
+        Plan rules:
+        {{ "closes at expiry" if sub.plan.auto_close else "runs until closed" }},
+        {{ "can close early" if sub.plan.closable else "no early close" }},
+        {{ "can pause" if sub.plan.pausable else "no pause" }},
+        {{ "renewable" if sub.plan.renewable else "not renewable" }}.
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">History</h2></div>
+      <div class="panel-body">
+        <ul class="timeline">
+          {% for entry in sub.logs %}
+          <li>{{ entry.message }}<div class="when">{{ entry.created_at|datetime }}{% if entry.user %}, {{ entry.user.name }}{% endif %}</div></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade" id="closeModal" tabindex="-1" aria-labelledby="closeModalTitle" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="{{ url_for('subscriptions.action', sub_id=sub.id, action='close') }}">
+      {{ m.csrf() }}
+      <div class="modal-header"><h2 class="modal-title fs-5" id="closeModalTitle">Close {{ sub.number }}?</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel"></button></div>
+      <div class="modal-body">
+        <p>No more invoices will be created. Invoices already sent stay open until paid.</p>
+        <label class="form-label" for="close-reason">Reason</label>
+        <input class="form-control" id="close-reason" name="reason" maxlength="255" placeholder="Customer moved to another product">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep it open</button>
+        <button type="submit" class="btn btn-danger">Close subscription</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

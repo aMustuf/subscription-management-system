@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from extensions import db
@@ -19,10 +19,15 @@ from models import (
     Product,
     ProductVariant,
     QuotationTemplate,
+    Subscription,
+    SubscriptionLine,
     Tax,
     TemplateLine,
     User,
+    next_number,
 )
+from services.catalog import tax_for_product, unit_price_for
+from services.dates import DEFAULT_TERM, add_periods
 
 DEMO_PASSWORDS = {"admin": "Admin@12345", "staff": "Staff@12345", "customer": "Customer@123"}
 
@@ -154,8 +159,88 @@ def seed_demo_data(bulk: int = 0) -> None:
 
 
 def _seed_activity(customers, admin, bulk):
-    """Subscriptions, invoices and payments (added in later milestones)."""
-    return None
+    """Subscriptions in every stage, so each screen has something to show."""
+    from services.subscriptions import log, recompute_totals
+
+    today = date.today()
+    staff = User.query.filter_by(email="staff@brightloop.com").one()
+    plans = {p.name: p for p in Plan.query.all()}
+    products = {p.name: p for p in Product.query.all()}
+    templates = {t.name: t for t in QuotationTemplate.query.all()}
+    crm, accounting = products["Brightloop CRM"], products["Brightloop Accounting"]
+    crm_plain, crm_odoo = crm.variants
+    acc_std, acc_pro = accounting.variants
+
+    def line(product, qty, variant=None):
+        return SubscriptionLine(product=product, variant=variant, quantity=qty, enabled=True,
+                                unit_price=unit_price_for(product, variant), tax=tax_for_product(product))
+
+    def make(customer, plan_name, start, lines, status, expiry=None, terms=15, template=None, note=None,
+             valid_until=None, reason=None):
+        plan = plans[plan_name]
+        if expiry is None and status != "draft":
+            expiry = add_periods(start, plan.billing_period, DEFAULT_TERM[plan.billing_period]) - timedelta(days=1)
+        sub = Subscription(number=next_number("SUB"), customer=customer, plan=plan, start_date=start,
+                           expiry_date=expiry, payment_term_days=terms, status="draft", created_by=staff,
+                           template=template, notes=note, quotation_valid_until=valid_until, lines=lines)
+        sub.created_at = datetime.combine(start - timedelta(days=7), datetime.min.time()).replace(hour=10)
+        log(sub, "Created" + (f" from template {template.name}" if template else ""), staff, to_status="draft")
+        path = {"draft": [], "quotation": ["quotation"], "confirmed": ["quotation", "confirmed"],
+                "active": ["quotation", "confirmed", "active"], "paused": ["quotation", "confirmed", "active", "paused"],
+                "closed": ["quotation", "confirmed", "active", "closed"]}[status]
+        messages = {"quotation": f"Quotation sent to {customer.email}", "confirmed": "Confirmed by customer",
+                    "active": "Started", "paused": "Paused: billing stops until resumed",
+                    "closed": "Closed" + (f": {reason}" if reason else "")}
+        previous = "draft"
+        for step in path:
+            log(sub, messages[step], staff, from_status=previous, to_status=step)
+            previous = step
+        sub.status = status
+        if status in ("confirmed", "active", "paused", "closed"):
+            sub.confirmed_at = sub.created_at + timedelta(days=2)
+            sub.next_invoice_date = start
+        if status in ("active", "paused", "closed"):
+            sub.activated_at = datetime.combine(start, datetime.min.time())
+        if status == "closed":
+            sub.closed_at, sub.close_reason = datetime.now() - timedelta(days=12), reason
+        for i, entry in enumerate(sorted(sub.logs, key=lambda e: e.id or 0)):
+            entry.created_at = sub.created_at + timedelta(days=i)
+        recompute_totals(sub)
+        db.session.add(sub)
+        return sub
+
+    c = customers
+    month_start = today.replace(day=1)
+    four_months_ago = add_periods(month_start, "monthly", -4)
+    make(c[0], "Monthly Standard", four_months_ago,
+         [line(crm, 3, crm_plain), line(products["Extra storage (50 GB)"], 1)], "active", terms=15)
+    make(c[0], "Monthly Standard", today + timedelta(days=3),
+         [line(accounting, 2, acc_std), line(products["Inventory add-on"], 1),
+          line(products["Barcode scanner (rental)"], 2)], "quotation", template=templates["Retail Store Kit"],
+         valid_until=today + timedelta(days=8), note="For the new Thalassery branch.")
+    make(c[1], "Yearly Business", today - timedelta(days=200),
+         [line(crm, 12, crm_odoo), line(accounting, 5, acc_pro)], "active", terms=30)
+    make(c[2], "Monthly Standard", add_periods(month_start, "monthly", -3),
+         [line(accounting, 4, acc_std), line(products["Inventory add-on"], 1),
+          line(products["Barcode scanner (rental)"], 3)], "active", terms=7)
+    make(c[3], "Weekly Trial", today - timedelta(days=10), [line(crm, 1, crm_plain)], "active", terms=0)
+    make(c[4], "Monthly Standard", add_periods(month_start, "monthly", -2),
+         [line(crm, 2, crm_plain)], "paused", terms=15)
+    make(c[5], "Monthly Standard", add_periods(today, "monthly", -2),
+         [line(crm, 12, crm_odoo), line(products["Priority support"], 1)], "active", terms=15)
+    make(c[6], "Daily Pay-as-you-go", today - timedelta(days=4), [line(crm, 2, crm_plain)], "active", terms=0)
+    make(c[7], "Yearly Business", today + timedelta(days=14),
+         [line(crm, 20, crm_odoo), line(accounting, 10, acc_pro), line(products["Priority support"], 1)],
+         "draft", template=templates["Enterprise Suite"], valid_until=today + timedelta(days=30))
+    make(c[8], "Monthly Standard", today + timedelta(days=5),
+         [line(crm, 4, crm_plain), line(products["Priority support"], 1)], "confirmed", terms=15)
+    make(c[9], "Monthly Standard", add_periods(month_start, "monthly", -5),
+         [line(accounting, 1, acc_std)], "closed", reason="Moved to an annual contract")
+    make(c[10], "Yearly Business", add_periods(today, "yearly", -1),
+         [line(crm, 6, crm_plain)], "active", expiry=today - timedelta(days=1), terms=30)
+    make(c[11], "Monthly Standard", add_periods(today, "monthly", -1) + timedelta(days=2),
+         [line(crm, 2, crm_plain)], "active", terms=15)
+    db.session.commit()
 
 
 def reset_database(bulk: int = 0) -> None:

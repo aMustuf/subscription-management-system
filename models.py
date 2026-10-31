@@ -95,10 +95,11 @@ class User(UserMixin, TimestampMixin, db.Model):
     is_active_account = db.Column(db.Boolean, nullable=False, default=True)
     last_login_at = db.Column(db.DateTime)
 
+    # Read-only collections (records are linked by setting subscription.customer / invoice.customer)
     subscriptions = db.relationship(
-        "Subscription", back_populates="customer", foreign_keys="Subscription.customer_id", lazy="dynamic"
+        "Subscription", foreign_keys="Subscription.customer_id", lazy="dynamic", viewonly=True
     )
-    invoices = db.relationship("Invoice", back_populates="customer", lazy="dynamic")
+    invoices = db.relationship("Invoice", foreign_keys="Invoice.customer_id", lazy="dynamic", viewonly=True)
 
     # Flask-Login checks this to block deactivated accounts
     @property
@@ -240,7 +241,7 @@ class Plan(TimestampMixin, db.Model):
     description = db.Column(db.Text)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
-    subscriptions = db.relationship("Subscription", back_populates="plan", lazy="dynamic")
+    subscriptions = db.relationship("Subscription", lazy="dynamic", viewonly=True)
 
     @property
     def period_label(self):
@@ -343,14 +344,14 @@ class Subscription(TimestampMixin, db.Model):
     closed_at = db.Column(db.DateTime)
     close_reason = db.Column(db.String(255))
 
-    customer = db.relationship("User", back_populates="subscriptions", foreign_keys=[customer_id])
+    customer = db.relationship("User", foreign_keys=[customer_id])
     created_by = db.relationship("User", foreign_keys=[created_by_id])
-    plan = db.relationship("Plan", back_populates="subscriptions")
+    plan = db.relationship("Plan")
     template = db.relationship("QuotationTemplate")
     lines = db.relationship(
         "SubscriptionLine", back_populates="subscription", cascade="all, delete-orphan", order_by="SubscriptionLine.id"
     )
-    invoices = db.relationship("Invoice", back_populates="subscription", lazy="dynamic")
+    invoices = db.relationship("Invoice", lazy="dynamic", viewonly=True)
     logs = db.relationship(
         "SubscriptionLog",
         back_populates="subscription",
@@ -380,7 +381,7 @@ class Subscription(TimestampMixin, db.Model):
 
     @property
     def billable_lines(self):
-        return [line for line in self.lines if line.enabled]
+        return [line for line in self.lines if line.enabled is not False]
 
 
 class SubscriptionLine(db.Model):
@@ -563,8 +564,8 @@ class Invoice(TimestampMixin, db.Model):
     paid_at = db.Column(db.DateTime)
     cancelled_at = db.Column(db.DateTime)
 
-    subscription = db.relationship("Subscription", back_populates="invoices")
-    customer = db.relationship("User", back_populates="invoices")
+    subscription = db.relationship("Subscription")
+    customer = db.relationship("User", foreign_keys=[customer_id])
     lines = db.relationship(
         "InvoiceLine", back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceLine.id"
     )

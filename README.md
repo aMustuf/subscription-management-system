@@ -50,6 +50,14 @@ On macOS/Linux use `python3 -m venv .venv`, then `.venv/bin/python` in place of 
 - **Quotation templates**: a plan plus product lines and a validity period in days, ready to turn into a subscription.
 - **Team**: only the admin can add staff. New members get an invite link and choose their own password.
 
+### Subscriptions
+- Each subscription gets its own number (SUB/2026/00001), a customer, a plan, start and expiry dates, payment terms and product lines (product, quantity, unit price, tax, amount).
+- Start from a quotation template: plan, lines and the quote's valid-until date fill in automatically.
+- Lifecycle: **Draft → Quotation → Confirmed → Active → Closed**, shown as a progress rail on every subscription, with a full history log of who changed what and when.
+- The plan's rules are enforced: availability dates, minimum quantity, close early, pause/resume, renew, and automatic closing at expiry. Blocked actions say why.
+- Confirmed subscriptions start automatically on their start date; expired ones on auto-close plans close on their own.
+- "Send quotation" emails the customer a summary; expired quotations can't be confirmed.
+
 ## Project structure
 
 ```
