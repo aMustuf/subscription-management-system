@@ -376,7 +376,9 @@ def record_payment(invoice: Invoice, amount: Decimal, method: str, payment_date:
     if amount <= 0:
         raise BillingError("Amount must be more than zero.")
     if amount > invoice.amount_due:
-        raise BillingError(f"Amount can't be more than the {invoice.amount_due} still due.")
+        from utils import format_money
+
+        raise BillingError(f"Amount can't be more than the {format_money(invoice.amount_due)} still due.")
     if method not in PAYMENT_METHODS:
         raise BillingError("Choose a valid payment method.")
     if payment_date > date.today():

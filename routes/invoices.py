@@ -21,7 +21,7 @@ from services.billing import (
     send_reminder,
 )
 from services.exports import csv_response
-from utils import Form, current_page, staff_required
+from utils import Form, current_page, format_money, staff_required
 
 bp = Blueprint("invoices", __name__, url_prefix="/invoices")
 
@@ -210,7 +210,7 @@ def add_payment(invoice_id):
     reference = form.text("reference", "Reference", required=False, max_len=80)
     note = form.text("note", "Note", required=False, max_len=1000)
     if amount is not None and amount > invoice.amount_due:
-        form.error("amount", f"Amount can't be more than the {invoice.amount_due} still due.")
+        form.error("amount", f"Amount can't be more than the {format_money(invoice.amount_due)} still due.")
     if paid_on and paid_on > date.today():
         form.error("payment_date", "Payment date can't be in the future.")
     if form.ok:
@@ -222,7 +222,7 @@ def add_payment(invoice_id):
         else:
             db.session.commit()
             state = "The invoice is now paid in full." if invoice.status == "paid" else \
-                f"{invoice.amount_due} is still due."
+                f"{format_money(invoice.amount_due)} is still due."
             flash(f"Payment {payment.number} recorded. {state}", "success")
             return redirect(url_for("invoices.detail", invoice_id=invoice.id))
     return render_template("invoices/detail.html", invoice=invoice, payment_form=form, methods=PAYMENT_METHODS,
