@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="auth">
+  <aside class="auth-aside">
+    <a class="brand" href="{{ url_for('auth.login') }}">{{ m.brand_mark() }}<span>Brightloop<small>Subscriptions &amp; billing</small></span></a>
+    <h2>One place for plans, subscriptions and recurring billing.</h2>
+    <p>Everything that happens in a billing month at Brightloop Software, without spreadsheets.</p>
+    <ol class="month" aria-label="A billing month">
+      <li><strong>Sign up</strong>Customers create an account and see their own portal.</li>
+      <li><strong>Launch a plan</strong>Products, variants, prices and billing periods.</li>
+      <li><strong>Quote to subscription</strong>Start from a template, move it to Active.</li>
+      <li><strong>Billing day</strong>Invoices created from every due subscription.</li>
+      <li><strong>Money comes in</strong>Payments matched to the right invoice.</li>
+      <li><strong>Month end</strong>Revenue, outstanding and overdue in one view.</li>
+    </ol>
+    <div class="foot">{{ company.name }}</div>
+  </aside>
+  <main class="auth-main" id="main">
+    <div class="auth-card">
+      <a class="brand auth-mobile-brand" href="{{ url_for('auth.login') }}">{{ m.brand_mark() }}<span>Brightloop</span></a>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      {% block auth %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}

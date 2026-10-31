@@ -1,0 +1,146 @@
+{# Reusable building blocks for forms, statuses and lists. #}
+
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro brand_mark(cls="brand-mark") %}
+<svg class="{{ cls }}" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#f2a93b"/><path d="M22.5 11.2A8 8 0 1 0 24 16" fill="none" stroke="#1e2340" stroke-width="3.2" stroke-linecap="round"/><path d="M19.6 8.6l3.6 2.2-1.9 3.7" fill="none" stroke="#1e2340" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{% endmacro %}
+
+{% macro field_error(form, name) -%}
+{% if form.errors.get(name) %}<div class="invalid-feedback d-block">{{ form.errors[name] }}</div>{% endif %}
+{%- endmacro %}
+
+{% macro label(name, text, required=False) -%}
+<label class="form-label" for="f-{{ name }}">{{ text }}{% if required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+{%- endmacro %}
+
+{% macro input(form, name, text, type="text", required=False, help=None, attrs={}, prefix=None, suffix=None, placeholder=None, wrapper="mb-3") %}
+<div class="{{ wrapper }}">
+  {{ label(name, text, required) }}
+  {% if prefix or suffix %}<div class="input-group has-validation">{% endif %}
+  {% if prefix %}<span class="input-group-text">{{ prefix }}</span>{% endif %}
+  <input type="{{ type }}" class="form-control{% if form.errors.get(name) %} is-invalid{% endif %}" id="f-{{ name }}" name="{{ name }}"
+    {% if type != "password" %}value="{{ form.values.get(name, '') }}"{% endif %}
+    {% if required %}required{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if help %}aria-describedby="h-{{ name }}"{% endif %}
+    {% for k, v in attrs.items() %} {{ k }}="{{ v }}"{% endfor %}>
+  {% if suffix %}<span class="input-group-text">{{ suffix }}</span>{% endif %}
+  {% if prefix or suffix %}{{ field_error(form, name) }}</div>{% else %}{{ field_error(form, name) }}{% endif %}
+  {% if help %}<div class="form-text" id="h-{{ name }}">{{ help }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro textarea(form, name, text, rows=3, required=False, help=None, placeholder=None, maxlength=None) %}
+<div class="mb-3">
+  {{ label(name, text, required) }}
+  <textarea class="form-control{% if form.errors.get(name) %} is-invalid{% endif %}" id="f-{{ name }}" name="{{ name }}" rows="{{ rows }}"
+    {% if required %}required{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %} {% if maxlength %}maxlength="{{ maxlength }}"{% endif %}>{{ form.values.get(name, '') }}</textarea>
+  {{ field_error(form, name) }}
+  {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro select(form, name, text, options, required=False, placeholder=None, help=None, attrs={}, wrapper="mb-3") %}
+{% set current = form.values.get(name, '')|string %}
+<div class="{{ wrapper }}">
+  {{ label(name, text, required) }}
+  <select class="form-select{% if form.errors.get(name) %} is-invalid{% endif %}" id="f-{{ name }}" name="{{ name }}" {% if required %}required{% endif %}
+    {% for k, v in attrs.items() %} {{ k }}="{{ v }}"{% endfor %}>
+    {% if placeholder %}<option value="">{{ placeholder }}</option>{% endif %}
+    {% for value, option_label in options %}
+    <option value="{{ value }}" {% if current == value|string %}selected{% endif %}>{{ option_label }}</option>
+    {% endfor %}
+  </select>
+  {{ field_error(form, name) }}
+  {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro checkbox(form, name, text, help=None, wrapper="mb-2") %}
+<div class="form-check {{ wrapper }}">
+  <input class="form-check-input" type="checkbox" id="f-{{ name }}" name="{{ name }}" {% if form.values.get(name) %}checked{% endif %}>
+  <label class="form-check-label" for="f-{{ name }}">{{ text }}</label>
+  {% if help %}<div class="form-text mt-0">{{ help }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro form_errors(form) %}
+{% if form.errors %}
+<div class="alert alert-danger" role="alert">
+  {% if form.errors.get("form") %}{{ form.errors["form"] }}{% else %}Fix the {{ form.errors|length }} highlighted field{{ "s" if form.errors|length != 1 }} and save again.{% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro status(code, text) -%}
+<span class="status status-{{ code }}">{{ text }}</span>
+{%- endmacro %}
+
+{% macro sub_status(sub) -%}
+{{ status(sub.status, sub.status_label) }}{% if sub.is_quotation_expired %} {{ status("expired-quote", "Quote expired") }}{% endif %}
+{%- endmacro %}
+
+{% macro invoice_status(inv) -%}
+{% if inv.is_overdue %}{{ status("overdue", "Overdue") }}{% else %}{{ status(inv.status, inv.status_label) }}{% endif %}
+{%- endmacro %}
+
+{% macro yesno(value, yes="Yes", no="No") -%}
+<span class="tag {{ 'tag-on' if value else 'tag-off' }}">{{ yes if value else no }}</span>
+{%- endmacro %}
+
+{% macro page_head(title, lede=None, crumbs=None) %}
+<div class="page-head">
+  <div>
+    {% if crumbs %}
+    <nav class="crumbs" aria-label="Breadcrumb">
+      {% for text, url in crumbs %}<a href="{{ url }}">{{ text }}</a><span class="sep" aria-hidden="true">/</span>{% endfor %}<span>{{ title }}</span>
+    </nav>
+    {% endif %}
+    <h1>{{ title }}</h1>
+    {% if lede %}<p class="lede">{{ lede }}</p>{% endif %}
+  </div>
+  {% if caller is defined %}<div class="page-actions">{{ caller() }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro empty(icon, title, text=None, url=None, action=None) %}
+<div class="empty">
+  <i class="bi bi-{{ icon }}" aria-hidden="true"></i>
+  <h2>{{ title }}</h2>
+  {% if text %}<p class="mb-3">{{ text }}</p>{% endif %}
+  {% if url %}<a class="btn btn-primary btn-sm" href="{{ url }}">{{ action }}</a>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro pager(pagination, noun="records") %}
+{% if pagination.total %}
+<div class="pager">
+  <span>{{ pagination.first }}–{{ pagination.last }} of {{ "{:,}".format(pagination.total) }} {{ noun }}</span>
+  {% if pagination.pages > 1 %}
+  <nav aria-label="Pages">
+    <ul class="pagination pagination-sm">
+      <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+        <a class="page-link" href="{{ url_for(request.endpoint, **dict(request.view_args, **page_args(page=pagination.prev_num))) if pagination.has_prev else '#' }}" aria-label="Previous page">&lsaquo;</a>
+      </li>
+      {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+        {% if p %}
+        <li class="page-item {{ 'active' if p == pagination.page }}"><a class="page-link" href="{{ url_for(request.endpoint, **dict(request.view_args, **page_args(page=p))) }}">{{ p }}</a></li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+        <a class="page-link" href="{{ url_for(request.endpoint, **dict(request.view_args, **page_args(page=pagination.next_num))) if pagination.has_next else '#' }}" aria-label="Next page">&rsaquo;</a>
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro password_rules(rules, list_id="pw-rules") %}
+<ul class="rules" id="{{ list_id }}" aria-label="Password requirements">
+  {% for key, text, _check in rules %}<li data-rule="{{ key }}">{{ text }}</li>{% endfor %}
+</ul>
+{% endmacro %}

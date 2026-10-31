@@ -1,0 +1,19 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Choose a new password{% endblock %}
+{% block auth %}
+<h1>{{ "Set your password" if purpose == "invite" else "Choose a new password" }}</h1>
+<p class="lede">For {{ user.email }}</p>
+{{ m.form_errors(form) }}
+<form method="post" novalidate>
+  {{ m.csrf() }}
+  <div class="mb-3">
+    {{ m.label("password", "New password", True) }}
+    <input type="password" class="form-control{% if form.errors.get('password') %} is-invalid{% endif %}" id="f-password" name="password" required
+      autocomplete="new-password" data-password-rules="#pw-rules" autofocus>
+    {{ m.field_error(form, "password") }}
+    {{ m.password_rules(rules) }}
+  </div>
+  {{ m.input(form, "confirm_password", "Confirm new password", type="password", required=True, attrs={"autocomplete": "new-password"}) }}
+  <button class="btn btn-primary w-100 py-2" type="submit">Save password</button>
+</form>
+{% endblock %}

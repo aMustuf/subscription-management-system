@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+{{ m.page_head("Your profile", "Your details appear on invoices and emails.") }}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Details</h2><span class="tag">{{ current_user.role_label }}</span></div>
+      <div class="panel-body">
+        {{ m.form_errors(details) }}
+        <form method="post" novalidate>
+          {{ m.csrf() }}<input type="hidden" name="action" value="details">
+          <div class="row">
+            <div class="col-md-6">{{ m.input(details, "name", "Full name", required=True, attrs={"maxlength": "120"}) }}</div>
+            <div class="col-md-6">
+              <div class="mb-3"><label class="form-label">Email</label><input class="form-control" value="{{ current_user.email }}" disabled>
+              <div class="form-text">Email is your login and can't be changed here.</div></div>
+            </div>
+            <div class="col-md-6">{{ m.input(details, "phone", "Phone", type="tel", attrs={"maxlength": "20"}) }}</div>
+            <div class="col-md-6">{{ m.input(details, "company", "Company", attrs={"maxlength": "150"}) }}</div>
+            <div class="col-md-8">{{ m.textarea(details, "address", "Billing address", rows=2, maxlength=500) }}</div>
+            <div class="col-md-4">{{ m.input(details, "gstin", "GSTIN", attrs={"maxlength": "20"}) }}</div>
+          </div>
+          <button class="btn btn-primary" type="submit">Save details</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-5">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Change password</h2></div>
+      <div class="panel-body">
+        {{ m.form_errors(password_form) }}
+        <form method="post" novalidate>
+          {{ m.csrf() }}<input type="hidden" name="action" value="password">
+          {{ m.input(password_form, "current_password", "Current password", type="password", required=True, attrs={"autocomplete": "current-password"}) }}
+          <div class="mb-3">
+            {{ m.label("password", "New password", True) }}
+            <input type="password" class="form-control{% if password_form.errors.get('password') %} is-invalid{% endif %}" id="f-password" name="password" required autocomplete="new-password" data-password-rules="#pw-rules">
+            {{ m.field_error(password_form, "password") }}
+            {{ m.password_rules(rules) }}
+          </div>
+          {{ m.input(password_form, "confirm_password", "Confirm new password", type="password", required=True, attrs={"autocomplete": "new-password"}) }}
+          <button class="btn btn-primary" type="submit">Change password</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

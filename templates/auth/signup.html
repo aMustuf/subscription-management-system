@@ -1,0 +1,23 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Create an account{% endblock %}
+{% block auth %}
+<h1>Create your account</h1>
+<p class="lede">See and manage your subscriptions and invoices yourself.</p>
+{{ m.form_errors(form) }}
+<form method="post" novalidate>
+  {{ m.csrf() }}
+  {{ m.input(form, "name", "Full name", required=True, attrs={"autocomplete": "name", "maxlength": "120"}) }}
+  {{ m.input(form, "company", "Company", help="Optional. Shown on your invoices.", attrs={"autocomplete": "organization", "maxlength": "150"}) }}
+  {{ m.input(form, "email", "Work email", type="email", required=True, help="One account per email address.", attrs={"autocomplete": "email"}) }}
+  <div class="mb-3">
+    {{ m.label("password", "Password", True) }}
+    <input type="password" class="form-control{% if form.errors.get('password') %} is-invalid{% endif %}" id="f-password" name="password" required
+      autocomplete="new-password" data-password-rules="#pw-rules" aria-describedby="pw-rules">
+    {{ m.field_error(form, "password") }}
+    {{ m.password_rules(rules) }}
+  </div>
+  {{ m.input(form, "confirm_password", "Confirm password", type="password", required=True, attrs={"autocomplete": "new-password"}) }}
+  <button class="btn btn-primary w-100 py-2" type="submit">Create account</button>
+</form>
+<p class="mt-4 mb-0">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+{% endblock %}

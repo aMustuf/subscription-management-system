@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{{ m.page_head("Dashboard", "Hello " ~ current_user.name.split()[0] ~ ". Here's where the business stands today.") }}
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Active subscriptions</div><div class="kpi-value">{{ counts.subscriptions }}</div></div>
+  <div class="kpi"><div class="kpi-label">Customers</div><div class="kpi-value">{{ counts.customers }}</div></div>
+  <div class="kpi"><div class="kpi-label">Products on sale</div><div class="kpi-value">{{ counts.products }}</div></div>
+  <div class="kpi"><div class="kpi-label">Plans</div><div class="kpi-value">{{ counts.plans }}</div></div>
+</div>
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">Getting started</h2></div>
+  <div class="panel-body">
+    <p class="mb-0 text-muted">Revenue, payments and overdue invoices appear here once billing is running.</p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Reset your password{% endblock %}
+{% block auth %}
+<h1>Reset your password</h1>
+<p class="lede">Enter the email you registered with. We'll send a link to choose a new password.</p>
+{% if demo_link %}
+<div class="notice mb-4">
+  <strong>Demo mode:</strong> email sending isn't set up, so the message was saved to the Email outbox instead.
+  <div class="mt-2"><a class="btn btn-sm btn-marigold" href="{{ demo_link }}">Open the reset link</a></div>
+</div>
+{% endif %}
+{{ m.form_errors(form) }}
+<form method="post" novalidate>
+  {{ m.csrf() }}
+  {{ m.input(form, "email", "Email", type="email", required=True, attrs={"autocomplete": "email", "autofocus": "autofocus"}) }}
+  <button class="btn btn-primary w-100 py-2" type="submit">Send reset link</button>
+</form>
+<p class="mt-4 mb-0"><a href="{{ url_for('auth.login') }}">Back to log in</a></p>
+{% endblock %}

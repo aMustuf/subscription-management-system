@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}My account{% endblock %}
+{% block content %}
+{{ m.page_head("Hello, " ~ current_user.name.split()[0], "Your subscriptions and invoices with " ~ company.name ~ ".") }}
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">Your subscriptions</h2></div>
+  {% if subscriptions %}
+  <div class="table-responsive">
+    <table class="table table-app">
+      <thead><tr><th>Number</th><th>Plan</th><th>Status</th><th>Started</th><th class="num">Per period</th></tr></thead>
+      <tbody>
+        {% for s in subscriptions %}
+        <tr>
+          <td class="mono-id">{{ s.number }}</td>
+          <td>{{ s.plan.name }}</td>
+          <td>{{ m.sub_status(s) }}</td>
+          <td>{{ s.start_date|date }}</td>
+          <td class="num">{{ s.amount_total|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ m.empty("arrow-repeat", "No subscriptions yet", "When Brightloop sends you a quotation or starts a subscription, it shows up here.") }}
+  {% endif %}
+</section>
+{% endblock %}

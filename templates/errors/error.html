@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+{% if current_user.is_authenticated %}
+{{ super() }}
+{% else %}
+<main class="auth-main" style="min-height:100vh" id="main">
+  <div class="auth-card text-center">
+    <p class="text-muted mb-1">Error {{ code }}</p>
+    <h1>{{ title }}</h1>
+    <p class="lede">{{ detail }}</p>
+    <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Go to log in</a>
+  </div>
+</main>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="panel"><div class="empty">
+  <i class="bi bi-{{ 'shield-lock' if code == 403 else 'signpost-split' if code == 404 else 'exclamation-octagon' }}" aria-hidden="true"></i>
+  <p class="mb-1">Error {{ code }}</p>
+  <h2>{{ title }}</h2>
+  <p>{{ detail }}</p>
+  <a class="btn btn-primary btn-sm" href="{{ url_for('index') }}">Go to your home page</a>
+</div></div>
+{% endblock %}
