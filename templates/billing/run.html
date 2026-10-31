@@ -6,7 +6,7 @@
 {% if result %}
 <section class="panel">
   <div class="panel-header"><h2 class="panel-title">Result for {{ result.run_date|date }}</h2>
-    <span class="text-muted small">{{ result.invoices|length }} invoice(s), {{ result.total|money }} in total</span></div>
+    <span class="text-muted small">{{ "{:,}".format(result.count) }} invoice(s), {{ result.total|money }} in total{% if result.count > result.invoices|length %}; showing the first {{ result.invoices|length }}{% endif %}</span></div>
   {% if result.invoices %}
   <div class="table-responsive">
     <table class="table table-app table-hover">
@@ -30,7 +30,7 @@
   {% if result.skipped %}
   <div class="panel-footer small">
     <div class="fw-semibold mb-1">Skipped</div>
-    {% for sub, reason in result.skipped %}<div>{{ sub.number }}: {{ reason }}</div>{% endfor %}
+    {% for number, reason in result.skipped[:30] %}<div>{{ number }}: {{ reason }}</div>{% endfor %}
   </div>
   {% endif %}
 </section>

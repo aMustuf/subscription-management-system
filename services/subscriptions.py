@@ -229,14 +229,12 @@ def run_housekeeping(today: date | None = None) -> int:
     return changed
 
 
-_last_housekeeping = {"at": -1e9}
-
-
 def housekeeping_once_a_minute() -> None:
     now = time.monotonic()
-    if now - _last_housekeeping["at"] < 60:
+    last_run = current_app.extensions.get("housekeeping_last_run", -1e9)
+    if now - last_run < 60:
         return
-    _last_housekeeping["at"] = now
+    current_app.extensions["housekeeping_last_run"] = now
     try:
         if run_housekeeping():
             db.session.commit()

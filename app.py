@@ -199,7 +199,7 @@ def register_commands(app: Flask) -> None:
 
         with app.test_request_context(base_url=app.config["APP_BASE_URL"]):
             result = run_billing(auto_confirm=confirm)
-        click.echo(f"{len(result['invoices'])} invoice(s) created for {result['subscriptions']} due subscription(s).")
+        click.echo(f"{result['count']} invoice(s) created for {result['subscriptions']} due subscription(s).")
 
     @app.cli.command("send-reminders")
     def send_reminders_command():

@@ -25,13 +25,14 @@ from models import (
     InvoiceDiscount,
     InvoiceLine,
     Payment,
+    Sequence,
     Subscription,
+    SubscriptionLog,
     money,
     next_number,
 )
 from services.catalog import default_tax
 from services.dates import next_period_start, period_end
-from services.subscriptions import log as log_subscription
 from services.subscriptions import run_housekeeping
 
 
@@ -60,10 +61,10 @@ def running_discounts(today: date) -> list[Discount]:
     )
 
 
-def apply_discounts(drafts: list[dict], today: date) -> list[tuple[Discount, Decimal]]:
+def apply_discounts(drafts: list[dict], today: date, discounts=None) -> list[tuple[Discount, Decimal]]:
     """Apply every running discount whose rules match. Mutates each draft line's 'discount'."""
     applied = []
-    for discount in running_discounts(today):
+    for discount in (running_discounts(today) if discounts is None else discounts):
         if discount.usage_limit is not None and discount.times_used >= discount.usage_limit:
             continue  # used up earlier in this same billing run
         if discount.applies_to == "products":
@@ -105,15 +106,37 @@ def apply_discounts(drafts: list[dict], today: date) -> list[tuple[Discount, Dec
 # ---------------------------------------------------------------------------
 # Creating invoices
 # ---------------------------------------------------------------------------
-def build_invoice(sub: Subscription, period_start: date, today: date) -> Invoice:
+class BillingContext:
+    """Things every invoice in one billing run needs, loaded once (keeps big runs fast)."""
+
+    def __init__(self, today: date, subscription: Subscription | None = None):
+        self.today = today
+        self.fee_tax = default_tax()
+        self.discounts = running_discounts(today)
+        self.sequence = Sequence.query.filter_by(name="INV", year=today.year).first()
+        if self.sequence is None:
+            self.sequence = Sequence(name="INV", year=today.year, value=0)
+            db.session.add(self.sequence)
+        billed = db.session.query(Invoice.subscription_id, Invoice.period_start).filter(Invoice.status != "cancelled")
+        if subscription is not None:
+            billed = billed.filter(Invoice.subscription_id == subscription.id)
+        self.billed = set(billed.all())  # (subscription id, period start) pairs already invoiced
+
+    def next_invoice_number(self) -> str:
+        self.sequence.value += 1
+        return f"INV/{self.sequence.year}/{self.sequence.value:05d}"
+
+
+def build_invoice(sub: Subscription, period_start: date, today: date, ctx: BillingContext | None = None) -> Invoice:
     """Create an invoice for one billing period, with customer details, lines, discounts and taxes."""
+    ctx = ctx or BillingContext(today, sub)
     plan = sub.plan
     end = period_end(period_start, plan.billing_period, anchor=sub.start_date)
     if sub.expiry_date and end > sub.expiry_date:
         end = sub.expiry_date
     customer = sub.customer
     invoice = Invoice(
-        number=next_number("INV"),
+        number=ctx.next_invoice_number(),
         subscription=sub,
         customer=customer,
         status="draft",
@@ -133,7 +156,7 @@ def build_invoice(sub: Subscription, period_start: date, today: date) -> Invoice
     period_text = f"{period_start:%d %b %Y} to {end:%d %b %Y}"
     if money(plan.price) > 0:
         drafts.append({"product_id": None, "description": f"{plan.name} plan fee ({period_text})", "quantity": 1,
-                       "unit_price": money(plan.price), "tax": default_tax()})
+                       "unit_price": money(plan.price), "tax": ctx.fee_tax})
     for line in sub.billable_lines:
         drafts.append({"product_id": line.product_id, "description": line.label, "quantity": line.quantity,
                        "unit_price": money(line.unit_price), "tax": line.tax})
@@ -141,7 +164,7 @@ def build_invoice(sub: Subscription, period_start: date, today: date) -> Invoice
         d["amount"] = money(d["unit_price"] * d["quantity"])
         d["discount"] = ZERO
 
-    applied = apply_discounts(drafts, today)
+    applied = apply_discounts(drafts, today, ctx.discounts)
 
     totals = {"untaxed": ZERO, "discount": ZERO, "tax": ZERO, "total": ZERO}
     for d in drafts:
@@ -173,7 +196,8 @@ def build_invoice(sub: Subscription, period_start: date, today: date) -> Invoice
     return invoice
 
 
-def bill_next_period(sub: Subscription, today: date | None = None, user=None, allow_early=False) -> Invoice:
+def bill_next_period(sub: Subscription, today: date | None = None, user=None, allow_early=False,
+                     ctx: BillingContext | None = None) -> Invoice:
     """Invoice the subscription's next unbilled period and move its billing date forward."""
     today = today or date.today()
     if sub.status != "active":
@@ -184,20 +208,22 @@ def bill_next_period(sub: Subscription, today: date | None = None, user=None, al
     if period_start > today and not allow_early:
         raise BillingError(f"{sub.number} isn't due until {period_start:%d %b %Y}.")
 
-    already = Invoice.query.filter(
-        Invoice.subscription_id == sub.id, Invoice.period_start == period_start, Invoice.status != "cancelled"
-    ).first()
-    if already is not None:
+    single = ctx is None
+    ctx = ctx or BillingContext(today, sub)
+    if (sub.id, period_start) in ctx.billed:
         sub.next_invoice_date = next_period_start(sub.start_date, period_start, sub.plan.billing_period)
-        raise BillingError(f"The period from {period_start:%d %b %Y} is already on {already.number}; skipped.",
-                           moved_on=True)
+        raise BillingError(f"The period from {period_start:%d %b %Y} is already invoiced; skipped.", moved_on=True)
 
-    invoice = build_invoice(sub, period_start, today)
+    invoice = build_invoice(sub, period_start, today, ctx)
     db.session.add(invoice)
+    ctx.billed.add((sub.id, period_start))
     sub.next_invoice_date = next_period_start(sub.start_date, period_start, sub.plan.billing_period)
-    db.session.flush()  # the unique index (subscription, period) is the database's own guard
-    log_subscription(sub, f"Invoice {invoice.number} created for {invoice.period_start:%d %b} to "
-                          f"{invoice.period_end:%d %b %Y}", user)
+    db.session.add(SubscriptionLog(
+        subscription_id=sub.id, user_id=getattr(user, "id", None),
+        message=f"Invoice {invoice.number} created for {invoice.period_start:%d %b} to {invoice.period_end:%d %b %Y}",
+    ))
+    if single:
+        db.session.flush()  # the unique index (subscription, period) is the database's own guard
     return invoice
 
 
@@ -211,26 +237,30 @@ def run_billing(run_date: date | None = None, user=None, auto_confirm=False, max
         .order_by(Subscription.next_invoice_date, Subscription.id)
         .all()
     )
-    result = {"run_date": run_date, "subscriptions": len(due), "invoices": [], "skipped": [], "total": ZERO}
-    for index, sub in enumerate(due, start=1):
-        for _ in range(max_periods_per_subscription):
-            if not (sub.next_invoice_date and sub.next_invoice_date <= run_date):
-                break
-            if sub.expiry_date and sub.next_invoice_date > sub.expiry_date:
-                break
-            try:
-                invoice = bill_next_period(sub, run_date, user)
-            except BillingError as exc:
-                result["skipped"].append((sub, str(exc)))
-                if exc.moved_on:
-                    continue
-                break
-            if auto_confirm:
-                confirm_invoice(invoice)
-            result["invoices"].append(invoice)
-            result["total"] += money(invoice.amount_total)
-        if index % 200 == 0:
-            db.session.commit()  # save progress in batches on big billing days
+    result = {"run_date": run_date, "subscriptions": len(due), "invoices": [], "skipped": [], "total": ZERO,
+              "count": 0, "discounted": 0}
+    ctx = BillingContext(run_date)
+    with db.session.no_autoflush:  # write everything in one go at the end
+        for sub in due:
+            for _ in range(max_periods_per_subscription):
+                if not (sub.next_invoice_date and sub.next_invoice_date <= run_date):
+                    break
+                if sub.expiry_date and sub.next_invoice_date > sub.expiry_date:
+                    break
+                try:
+                    invoice = bill_next_period(sub, run_date, user, ctx=ctx)
+                except BillingError as exc:
+                    result["skipped"].append((sub.number, str(exc)))
+                    if exc.moved_on:
+                        continue
+                    break
+                if auto_confirm:
+                    confirm_invoice(invoice)
+                result["count"] += 1
+                result["total"] += money(invoice.amount_total)
+                result["discounted"] += 1 if invoice.applied_discounts else 0
+                if len(result["invoices"]) < 50:  # shown on the results page
+                    result["invoices"].append(invoice)
     db.session.commit()
     return result
 
@@ -269,7 +299,8 @@ def cancel_invoice(invoice: Invoice, user=None) -> str:
         if sub.next_invoice_date == next_period_start(sub.start_date, invoice.period_start, sub.plan.billing_period):
             sub.next_invoice_date = invoice.period_start  # so the period is not skipped
             message += f" The period from {invoice.period_start:%d %b %Y} can be billed again."
-        log_subscription(sub, f"Invoice {invoice.number} cancelled", user)
+        db.session.add(SubscriptionLog(subscription_id=sub.id, user_id=getattr(user, "id", None),
+                                       message=f"Invoice {invoice.number} cancelled"))
     return message
 
 

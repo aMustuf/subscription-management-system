@@ -85,6 +85,34 @@ On macOS/Linux use `python3 -m venv .venv`, then `.venv/bin/python` in place of 
 - Accept or decline quotations, pause/resume, renew or close a subscription when its plan allows it, and switch add-ons on or off.
 - View, print and pay invoices (the "Pay now" button records a test payment; no real gateway is connected).
 
+## Performance: thousands of subscriptions
+
+The brief asks for every page to answer in under two seconds with thousands of subscriptions. Load a big data set and check:
+
+```
+.venv\Scripts\python seed.py --bulk 3000
+```
+
+This adds 1,000 customers, 3,000 subscriptions, about 11,600 invoices and 11,200 payments in a few seconds. Every page shows its server time in the footer. Measured on a laptop with that data:
+
+| Page | Server time |
+|---|---|
+| Dashboard (last 12 months) | ~75 ms |
+| Subscriptions, invoices, payments, customers (any page, any filter) | 5–50 ms |
+| Reports | ~55 ms |
+| Billing run: 1,697 due subscriptions, 2,842 invoices | ~1.6 s |
+
+How: every list is paginated, totals are computed in SQL (not Python loops), foreign keys and status/date columns are indexed, and a billing run loads taxes, discounts and existing periods once instead of per invoice.
+
+## Tests
+
+```
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+.venv\Scripts\python -m pytest -q
+```
+
+24 tests cover the brief's rules: password rules, unique emails, one-time reset links, role access, the Odoo +560 variant, plan minimums and availability, the subscription lifecycle, plan rules (pause/close), auto-close at expiry, no double billing (in code and in the database), re-billing after a cancel, automatic discounts and usage limits, tax totals, payments, portal privacy, and month-end billing dates.
+
 ## Scheduled jobs (optional)
 
 Billing and reminders can run without anyone clicking, e.g. from Windows Task Scheduler or cron:
@@ -101,7 +129,8 @@ app.py            Flask app: setup, navigation, error pages
 config.py         Settings (database path, company details, email)
 models.py         Every database table, relation and constraint
 utils.py          Form validation, role checks, formatting, reset tokens
-seed.py           Demo data (python seed.py resets the database)
+seed.py           Demo data (python seed.py resets it; --bulk 3000 adds a big data set)
+tests/            Automated tests (pytest)
 routes/           One blueprint per area (auth, dashboard, portal, ...)
 services/         Business logic (email, billing, ...)
 templates/        Jinja pages; _macros.html holds shared form/status pieces

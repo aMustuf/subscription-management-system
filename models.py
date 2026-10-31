@@ -107,7 +107,10 @@ class User(UserMixin, TimestampMixin, db.Model):
         return bool(self.is_active_account)
 
     def set_password(self, raw_password: str) -> None:
-        self.password_hash = generate_password_hash(raw_password)
+        from flask import current_app, has_app_context
+
+        method = current_app.config.get("PASSWORD_HASH_METHOD", "scrypt") if has_app_context() else "scrypt"
+        self.password_hash = generate_password_hash(raw_password, method=method)
 
     def check_password(self, raw_password: str) -> bool:
         return check_password_hash(self.password_hash, raw_password)

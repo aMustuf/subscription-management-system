@@ -156,6 +156,8 @@ def seed_demo_data(bulk: int = 0) -> None:
     db.session.commit()
 
     _seed_activity(customers, admin, bulk)
+    if bulk:
+        _seed_bulk(bulk)
 
 
 def _seed_activity(customers, admin, bulk):
@@ -294,6 +296,179 @@ def _seed_billing_history(history, today):
             record_payment(invoice, part_payment, "upi", min(invoice.invoice_date + timedelta(days=5), today),
                            reference=f"UTR{748200 + counter * 37}", note="Part payment. Rest promised next week.")
     db.session.commit()
+
+
+BULK_NAMES = ["Coastal", "Malabar", "Sahyadri", "Nila", "Periyar", "Kaveri", "Western Ghats", "Lakshadweep",
+              "Arabian", "Spice Route", "Monsoon", "Backwater", "Teak", "Cardamom", "Pepper", "Coir"]
+BULK_KINDS = ["Traders", "Clinics", "Foods", "Textiles", "Logistics", "Studios", "Retail", "Exports", "Motors",
+              "Pharma", "Hotels", "Builders", "Agencies", "Labs", "Electronics", "Bakers"]
+
+
+def _seed_bulk(count: int) -> None:
+    """Add `count` extra subscriptions with invoice and payment history (speed test data).
+
+    Uses bulk inserts so 3,000 subscriptions load in seconds. Every page should
+    still answer in well under two seconds with this much data.
+    """
+    import random
+
+    from sqlalchemy import func, insert
+
+    from models import Invoice, InvoiceLine, Payment, Sequence, ZERO, money
+    from services.dates import next_period_start, period_end
+
+    rng = random.Random(2026)
+    today = date.today()
+    now = datetime.now()
+    password_hash = User.query.filter_by(email="customer@demo.com").one().password_hash  # Customer@123
+
+    # Customers: one for every three subscriptions
+    first_user_id = (db.session.query(func.max(User.id)).scalar() or 0) + 1
+    customers = []
+    for i in range(max(count // 3, 1)):
+        company = f"{rng.choice(BULK_NAMES)} {rng.choice(BULK_KINDS)} {i + 1:04d}"
+        customers.append({"id": first_user_id + i, "name": f"Owner {i + 1:04d}", "email": f"bulk{i + 1:04d}@example.com",
+                          "password_hash": password_hash, "role": "customer", "company": company,
+                          "is_active_account": True, "created_at": now - timedelta(days=rng.randint(30, 400))})
+    db.session.execute(insert(User), customers)
+
+    plans = {p.name: p for p in Plan.query.all()}
+    plan_mix = [("Monthly Standard", 60), ("Yearly Business", 20), ("Weekly Trial", 10), ("Daily Pay-as-you-go", 10)]
+    status_mix = [("active", 70), ("closed", 10), ("paused", 5), ("quotation", 5), ("draft", 5), ("confirmed", 5)]
+    fee_tax = Tax.query.filter_by(is_default=True).one()
+    options = []
+    for product in Product.query.filter_by(active=True).all():
+        tax = tax_for_product(product)
+        for variant in (product.variants or [None]):
+            options.append((product, variant, unit_price_for(product, variant), tax))
+
+    def pick(mix):
+        return rng.choices([k for k, _ in mix], weights=[w for _, w in mix])[0]
+
+    def seq(name):
+        row = Sequence.query.filter_by(name=name, year=today.year).first()
+        if row is None:
+            row = Sequence(name=name, year=today.year, value=0)
+            db.session.add(row)
+            db.session.flush()
+        return row
+
+    sub_seq, inv_seq, pay_seq = seq("SUB"), seq("INV"), seq("PAY")
+    next_ids = {model: (db.session.query(func.max(model.id)).scalar() or 0) + 1
+                for model in (Subscription, SubscriptionLine, Invoice, InvoiceLine, Payment)}
+    subs, sub_lines, invoices, invoice_lines, payments = [], [], [], [], []
+    methods = ["bank_transfer", "upi", "card", "upi", "bank_transfer", "cheque"]
+
+    for i in range(count):
+        plan = plans[pick(plan_mix)]
+        status = pick(status_mix)
+        period = plan.billing_period
+        if status in ("draft", "quotation", "confirmed"):
+            start = today + timedelta(days=rng.randint(1, 20))
+        elif period == "monthly":
+            start = add_periods(today, "monthly", -rng.randint(1, 10)) - timedelta(days=rng.randint(0, 27))
+        elif period == "yearly":
+            start = today - timedelta(days=rng.randint(20, 330))
+        elif period == "weekly":
+            start = today - timedelta(days=rng.randint(7, 60))
+        else:
+            start = today - timedelta(days=rng.randint(1, 4))
+        expiry = add_periods(start, period, DEFAULT_TERM[period]) - timedelta(days=1)
+        sub_id = next_ids[Subscription] + i
+        sub_seq.value += 1
+
+        lines, untaxed, tax_total = [], money(plan.price), fee_tax.compute(plan.price)
+        chosen = rng.sample(options, k=rng.randint(1, 3))
+        for n, (product, variant, price, tax) in enumerate(chosen):
+            qty = rng.randint(1, 12)
+            if n == 0:
+                qty = max(qty, plan.min_quantity)
+            amount = money(price * qty)
+            line_tax = tax.compute(amount) if tax else ZERO
+            untaxed += amount
+            tax_total += line_tax
+            lines.append({"id": next_ids[SubscriptionLine] + len(sub_lines), "subscription_id": sub_id,
+                          "product_id": product.id, "variant_id": variant.id if variant else None,
+                          "quantity": qty, "unit_price": price, "tax_id": tax.id if tax else None, "enabled": True,
+                          "_amount": amount, "_tax": tax, "_label": f"{product.name} ({variant.label})" if variant else product.name})
+            sub_lines.append(lines[-1])
+
+        # Invoice history: every period up to yesterday, so this subscription's
+        # current period is due on billing day
+        next_invoice = start
+        billed = []
+        if status in ("active", "paused", "closed"):
+            last_billable = today - timedelta(days=1) if status == "active" else today - timedelta(days=15)
+            while next_invoice <= last_billable and next_invoice <= expiry and len(billed) < 12:
+                billed.append(next_invoice)
+                next_invoice = next_period_start(start, next_invoice, period)
+        customer = customers[i % len(customers)]
+        for k, period_start in enumerate(billed):
+            inv_id = next_ids[Invoice] + len(invoices)
+            inv_seq.value += 1
+            end = min(period_end(period_start, period, anchor=start), expiry)
+            due = period_start + timedelta(days=15)
+            total = money(untaxed + tax_total)
+            unpaid = k == len(billed) - 1 and rng.random() < 0.18
+            paid_amount = ZERO if unpaid else total
+            invoices.append({
+                "id": inv_id, "number": f"INV/{today.year}/{inv_seq.value:05d}", "subscription_id": sub_id,
+                "customer_id": customer["id"], "status": "confirmed" if unpaid else "paid",
+                "invoice_date": period_start, "due_date": due, "period_start": period_start, "period_end": end,
+                "bill_to_name": customer["name"], "bill_to_company": customer["company"],
+                "bill_to_email": customer["email"], "amount_untaxed": untaxed, "amount_discount": ZERO,
+                "amount_tax": tax_total, "amount_total": total, "amount_paid": paid_amount,
+                "confirmed_at": datetime.combine(period_start, time(9, 40)),
+                "paid_at": None if unpaid else datetime.combine(min(period_start + timedelta(days=4), today), time(15)),
+                "created_at": datetime.combine(period_start, time(9, 30)),
+            })
+            if money(plan.price) > 0:
+                fee = money(plan.price)
+                fee_tax_amount = fee_tax.compute(fee)
+                invoice_lines.append({"id": next_ids[InvoiceLine] + len(invoice_lines), "invoice_id": inv_id,
+                                      "description": f"{plan.name} plan fee", "quantity": 1, "unit_price": fee,
+                                      "discount_amount": ZERO, "tax_name": fee_tax.name, "tax_rate": fee_tax.rate,
+                                      "amount": fee, "tax_amount": fee_tax_amount, "total": fee + fee_tax_amount})
+            for line in lines:
+                line_tax = line["_tax"].compute(line["_amount"]) if line["_tax"] else ZERO
+                invoice_lines.append({"id": next_ids[InvoiceLine] + len(invoice_lines), "invoice_id": inv_id,
+                                      "product_id": line["product_id"], "description": line["_label"],
+                                      "quantity": line["quantity"], "unit_price": line["unit_price"],
+                                      "discount_amount": ZERO, "tax_name": line["_tax"].name if line["_tax"] else None,
+                                      "tax_rate": line["_tax"].rate if line["_tax"] else 0, "amount": line["_amount"],
+                                      "tax_amount": line_tax, "total": line["_amount"] + line_tax})
+            if not unpaid:
+                pay_seq.value += 1
+                payments.append({"id": next_ids[Payment] + len(payments), "number": f"PAY/{today.year}/{pay_seq.value:05d}",
+                                 "invoice_id": inv_id, "amount": total, "method": methods[len(payments) % len(methods)],
+                                 "payment_date": min(period_start + timedelta(days=4), today),
+                                 "created_at": now})
+
+        subs.append({
+            "id": sub_id, "number": f"SUB/{today.year}/{sub_seq.value:05d}", "customer_id": customer["id"],
+            "plan_id": plan.id, "status": status, "start_date": start, "expiry_date": expiry,
+            "payment_term_days": 15, "next_invoice_date": next_invoice if status not in ("draft", "quotation") else None,
+            "quotation_valid_until": today + timedelta(days=15) if status in ("draft", "quotation") else None,
+            "amount_untaxed": untaxed, "amount_tax": tax_total, "amount_total": money(untaxed + tax_total),
+            "created_at": datetime.combine(start - timedelta(days=5), time(11)),
+            "closed_at": now - timedelta(days=10) if status == "closed" else None,
+            "close_reason": "Customer stopped the service" if status == "closed" else None,
+        })
+
+    for line in sub_lines:
+        for key in ("_amount", "_tax", "_label"):
+            line.pop(key)
+    db.session.execute(insert(Subscription), subs)
+    db.session.execute(insert(SubscriptionLine), sub_lines)
+    for start_at in range(0, len(invoices), 2000):
+        db.session.execute(insert(Invoice), invoices[start_at:start_at + 2000])
+    for start_at in range(0, len(invoice_lines), 4000):
+        db.session.execute(insert(InvoiceLine), invoice_lines[start_at:start_at + 4000])
+    for start_at in range(0, len(payments), 4000):
+        db.session.execute(insert(Payment), payments[start_at:start_at + 4000])
+    db.session.commit()
+    print(f"Added {len(customers):,} customers, {len(subs):,} subscriptions, {len(invoices):,} invoices "
+          f"and {len(payments):,} payments.")
 
 
 def reset_database(bulk: int = 0) -> None:

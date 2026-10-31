@@ -53,3 +53,4 @@ class TestConfig(Config):
     WTF_CSRF_ENABLED = False
     MAIL_SERVER = ""
     AUTO_SEED = False
+    PASSWORD_HASH_METHOD = "pbkdf2:sha256:1000"  # fast hashing keeps the test suite quick

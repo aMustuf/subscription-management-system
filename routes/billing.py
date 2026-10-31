@@ -24,9 +24,9 @@ def run():
             form.error("run_date", "You can bill up to today, not future dates.")
         if form.ok:
             result = run_billing(run_date, user=current_user, auto_confirm=form.boolean("auto_confirm"))
-            if result["invoices"]:
-                flash(f"{len(result['invoices'])} invoice(s) created for {result['subscriptions']} subscription(s).",
-                      "success")
+            if result["count"]:
+                flash(f"{result['count']:,} invoice(s) created for {result['subscriptions']:,} subscription(s); "
+                      f"{result['discounted']:,} got a discount automatically.", "success")
             else:
                 flash("Nothing was due. Every active subscription is billed up to date.", "info")
     preview = due_preview(today)
