@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit " ~ customer.display_name if customer else "New customer" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit customer" if customer else "New customer", None,
+   [("Customers", url_for('customers.index'))] + ([(customer.display_name, url_for('customers.detail', customer_id=customer.id))] if customer else [])) }}
+<section class="panel" style="max-width: 860px">
+  <div class="panel-body">
+    {{ m.form_errors(form) }}
+    <form method="post" novalidate>
+      {{ m.csrf() }}
+      <div class="row">
+        <div class="col-md-6">{{ m.input(form, "company", "Company", attrs={"maxlength": "150"}, help="Shown on invoices. Leave empty for individuals.") }}</div>
+        <div class="col-md-6">{{ m.input(form, "name", "Contact name", required=True, attrs={"maxlength": "120"}) }}</div>
+        <div class="col-md-6">{{ m.input(form, "email", "Email", type="email", required=True, help="Their portal login. One account per email.") }}</div>
+        <div class="col-md-6">{{ m.input(form, "phone", "Phone", type="tel", attrs={"maxlength": "20"}) }}</div>
+        <div class="col-md-8">{{ m.textarea(form, "address", "Billing address", rows=2, maxlength=500) }}</div>
+        <div class="col-md-4">{{ m.input(form, "gstin", "GSTIN", attrs={"maxlength": "20"}) }}</div>
+      </div>
+      {% if customer %}
+        {{ m.checkbox(form, "active", "Account active", help="Deactivated customers can't log in. Their records stay.") }}
+      {% else %}
+        {{ m.checkbox(form, "send_invite", "Email them an invite to set a password and use the portal") }}
+      {% endif %}
+      <div class="form-actions mt-3">
+        <button class="btn btn-primary" type="submit">{{ "Save customer" if customer else "Add customer" }}</button>
+        <a class="btn btn-light" href="{{ url_for('customers.detail', customer_id=customer.id) if customer else url_for('customers.index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

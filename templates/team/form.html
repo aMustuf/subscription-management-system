@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Add staff member{% endblock %}
+{% block content %}
+{{ m.page_head("Add staff member", "They get an email with a link to choose their own password.", [("Team", url_for('team.index'))]) }}
+<section class="panel" style="max-width: 640px">
+  <div class="panel-body">
+    {{ m.form_errors(form) }}
+    <form method="post" novalidate>
+      {{ m.csrf() }}
+      {{ m.input(form, "name", "Full name", required=True, attrs={"maxlength": "120"}) }}
+      {{ m.input(form, "email", "Work email", type="email", required=True) }}
+      {{ m.input(form, "phone", "Phone", type="tel", attrs={"maxlength": "20"}) }}
+      {{ m.select(form, "role", "Role", roles.items()|list, required=True) }}
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Add and send invite</button>
+        <a class="btn btn-light" href="{{ url_for('team.index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

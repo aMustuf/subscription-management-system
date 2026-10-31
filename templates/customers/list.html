@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Customers{% endblock %}
+{% block content %}
+{% call m.page_head("Customers", "Everyone who buys from Brightloop. Customers see their own subscriptions and invoices in the portal.") %}
+  <a class="btn btn-primary" href="{{ url_for('customers.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New customer</a>
+{% endcall %}
+<section class="panel">
+  <form class="filters" method="get" role="search">
+    <div class="grow">
+      <label class="form-label" for="q">Search</label>
+      <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Name, company or email">
+    </div>
+    <div>
+      <label class="form-label" for="state">Status</label>
+      <select class="form-select" id="state" name="state" data-autosubmit>
+        <option value="">All</option>
+        <option value="active" {{ 'selected' if state == 'active' }}>Active</option>
+        <option value="inactive" {{ 'selected' if state == 'inactive' }}>Deactivated</option>
+      </select>
+    </div>
+    <button class="btn btn-outline-primary" type="submit">Search</button>
+  </form>
+  {% if pagination.items %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th class="num">Live subscriptions</th><th class="num">Outstanding</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for c in pagination.items %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('customers.detail', customer_id=c.id) }}">{{ c.display_name }}</a>{% if c.company %}<span class="cell-sub">{{ c.name }}</span>{% endif %}</td>
+          <td>{{ c.email }}</td>
+          <td class="tabular">{{ c.phone or "—" }}</td>
+          <td class="num">{{ active_subs.get(c.id, 0) }}</td>
+          <td class="num">{{ balances.get(c.id, 0)|money }}</td>
+          <td>{{ m.yesno(c.is_active_account, "Active", "Deactivated") }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pager(pagination, "customers") }}
+  {% else %}
+    {{ m.empty("people", "No customers match", "Try another search, or add the customer yourself.", url_for('customers.create'), "New customer") }}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit " ~ product.name if product else "New product" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit product" if product else "New product", None,
+   [("Products", url_for('products.index'))] + ([(product.name, url_for('products.detail', product_id=product.id))] if product else [])) }}
+<section class="panel" style="max-width: 860px">
+  <div class="panel-body">
+    {{ m.form_errors(form) }}
+    <form method="post" novalidate>
+      {{ m.csrf() }}
+      <div class="row">
+        <div class="col-md-8">{{ m.input(form, "name", "Name", required=True, attrs={"maxlength": "150"}) }}</div>
+        <div class="col-md-4">{{ m.select(form, "product_type", "Type", PRODUCT_TYPES.items()|list, required=True) }}</div>
+        <div class="col-md-4">{{ m.input(form, "sales_price", "Sales price", type="number", required=True, prefix="₹", attrs={"min": "0", "step": "0.01", "inputmode": "decimal"}, help="Per unit, per billing period.") }}</div>
+        <div class="col-md-4">{{ m.input(form, "cost_price", "Cost price", type="number", prefix="₹", attrs={"min": "0", "step": "0.01", "inputmode": "decimal"}, help="Used for margin.") }}</div>
+        <div class="col-md-4">{{ m.select(form, "tax_id", "Tax", taxes, placeholder="Use the default tax", help="Taxes are added automatically on invoices.") }}</div>
+      </div>
+      {{ m.textarea(form, "notes", "Notes", rows=3, maxlength=2000) }}
+      {{ m.checkbox(form, "active", "On sale", help="Archived products can't be added to new quotes.") }}
+      <div class="form-actions mt-3">
+        <button class="btn btn-primary" type="submit">{{ "Save product" if product else "Create product" }}</button>
+        <a class="btn btn-light" href="{{ url_for('products.detail', product_id=product.id) if product else url_for('products.index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

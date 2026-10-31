@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.display_name }}{% endblock %}
+{% block content %}
+{% call m.page_head(customer.display_name, customer.name if customer.company else None, [("Customers", url_for('customers.index'))]) %}
+  {% if endpoint_exists('subscriptions.create') %}
+  <a class="btn btn-primary" href="{{ url_for('subscriptions.create', customer_id=customer.id) }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New subscription</a>
+  {% endif %}
+  <a class="btn btn-outline-primary" href="{{ url_for('customers.edit', customer_id=customer.id) }}">Edit</a>
+{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Details</h2>{{ m.yesno(customer.is_active_account, "Active", "Deactivated") }}</div>
+      <div class="panel-body">
+        <dl class="facts">
+          <dt>Email</dt><dd>{{ customer.email }}</dd>
+          <dt>Phone</dt><dd>{{ customer.phone or "—" }}</dd>
+          <dt>Address</dt><dd>{{ customer.address or "—" }}</dd>
+          <dt>GSTIN</dt><dd>{{ customer.gstin or "—" }}</dd>
+          <dt>Since</dt><dd>{{ customer.created_at|date }}</dd>
+          <dt>Last login</dt><dd>{{ customer.last_login_at|datetime }}</dd>
+          <dt>Outstanding</dt><dd>{{ outstanding|money }}</dd>
+        </dl>
+      </div>
+      <div class="panel-footer">
+        <form method="post" action="{{ url_for('customers.invite', customer_id=customer.id) }}">
+          {{ m.csrf() }}<button class="btn btn-sm btn-light" type="submit"><i class="bi bi-envelope" aria-hidden="true"></i> Email a portal invite</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-8">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Subscriptions</h2></div>
+      {% if subscriptions %}
+      <div class="table-responsive">
+        <table class="table table-app table-hover">
+          <thead><tr><th>Number</th><th>Plan</th><th>Status</th><th>Start</th><th>Expiry</th><th class="num">Per period</th></tr></thead>
+          <tbody>
+          {% for s in subscriptions %}
+            <tr>
+              <td>{% if endpoint_exists('subscriptions.detail') %}<a class="row-link" href="{{ url_for('subscriptions.detail', sub_id=s.id) }}">{{ s.number }}</a>{% else %}{{ s.number }}{% endif %}</td>
+              <td>{{ s.plan.name }}</td><td>{{ m.sub_status(s) }}</td>
+              <td>{{ s.start_date|date }}</td><td>{{ s.expiry_date|date }}</td>
+              <td class="num">{{ s.amount_total|money }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ m.empty("arrow-repeat", "No subscriptions yet") }}
+      {% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Recent invoices</h2></div>
+      {% if invoices %}
+      <div class="table-responsive">
+        <table class="table table-app table-hover">
+          <thead><tr><th>Number</th><th>Date</th><th>Due</th><th>Status</th><th class="num">Total</th><th class="num">Due now</th></tr></thead>
+          <tbody>
+          {% for inv in invoices %}
+            <tr>
+              <td>{% if endpoint_exists('invoices.detail') %}<a class="row-link" href="{{ url_for('invoices.detail', invoice_id=inv.id) }}">{{ inv.number }}</a>{% else %}{{ inv.number }}{% endif %}</td>
+              <td>{{ inv.invoice_date|date }}</td><td>{{ inv.due_date|date }}</td>
+              <td>{{ m.invoice_status(inv) }}</td>
+              <td class="num">{{ inv.amount_total|money }}</td><td class="num">{{ inv.amount_due|money }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ m.empty("receipt", "No invoices yet") }}
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

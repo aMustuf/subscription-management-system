@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Discounts{% endblock %}
+{% block content %}
+{% call m.page_head("Discounts", "Running discounts apply on their own to the next invoice when the rules match, and stop when they expire or run out.") %}
+  {% if current_user.is_admin %}<a class="btn btn-primary" href="{{ url_for('discounts.edit') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New discount</a>{% endif %}
+{% endcall %}
+{% if not current_user.is_admin %}<div class="alert alert-info">Only the admin can create or change discount rules.</div>{% endif %}
+<section class="panel">
+  {% if discounts %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Discount</th><th class="num">Value</th><th>Applies to</th><th>Rules</th><th>Valid</th><th class="num">Used</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for d in discounts %}
+        {% set st = d.state(today) %}
+        <tr>
+          <td>{% if current_user.is_admin %}<a class="row-link" href="{{ url_for('discounts.edit', discount_id=d.id) }}">{{ d.name }}</a>{% else %}<span class="fw-semibold">{{ d.name }}</span>{% endif %}</td>
+          <td class="num">{{ d.value_label or (d.value|money) }}</td>
+          <td>{{ d.scope_label }}{% if d.applies_to == 'products' %}<span class="cell-sub">{{ d.products|map(attribute='name')|join(', ') }}</span>{% endif %}</td>
+          <td class="small">
+            {% if d.min_purchase|float > 0 %}Spend at least {{ d.min_purchase|money }}<br>{% endif %}
+            {% if d.min_quantity > 0 %}At least {{ d.min_quantity }} units{% endif %}
+            {% if not d.min_purchase|float > 0 and not d.min_quantity > 0 %}<span class="text-muted">No minimum</span>{% endif %}
+          </td>
+          <td class="text-nowrap small">{{ d.start_date|date }} – {{ d.end_date|date }}</td>
+          <td class="num">{{ d.times_used }}{% if d.usage_limit %} / {{ d.usage_limit }}{% else %} <span class="text-muted">/ no limit</span>{% endif %}</td>
+          <td>{{ m.status(st, state_labels[st]) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ m.empty("percent", "No discounts yet") }}
+  {% endif %}
+</section>
+{% endblock %}

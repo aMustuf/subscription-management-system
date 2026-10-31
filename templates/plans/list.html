@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Plans{% endblock %}
+{% block content %}
+{% call m.page_head("Plans", "What a plan costs, how often it bills, and what customers may do with it. The admin decides plan by plan.") %}
+  {% if current_user.is_admin %}<a class="btn btn-primary" href="{{ url_for('plans.edit') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New plan</a>{% endif %}
+{% endcall %}
+<section class="panel">
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Plan</th><th class="num">Plan fee</th><th>Bills</th><th class="num">Min. qty</th><th>Available</th><th>Rules</th><th class="num">Live subs</th></tr></thead>
+      <tbody>
+      {% for p in plans %}
+        <tr>
+          <td>
+            {% if current_user.is_admin %}<a class="row-link" href="{{ url_for('plans.edit', plan_id=p.id) }}">{{ p.name }}</a>{% else %}<span class="fw-semibold">{{ p.name }}</span>{% endif %}
+            {% if not p.active %} <span class="tag tag-off">Inactive</span>{% elif not p.is_available_on(today) %} <span class="tag tag-off">Not available now</span>{% endif %}
+            {% if p.description %}<span class="cell-sub">{{ p.description }}</span>{% endif %}
+          </td>
+          <td class="num">{{ p.price|money }}</td>
+          <td>{{ p.period_label }}</td>
+          <td class="num">{{ p.min_quantity }}</td>
+          <td class="text-nowrap">{{ p.availability_label }}</td>
+          <td><div class="chip-row">
+            {{ m.yesno(p.auto_close, "Closes at expiry", "Runs until closed") }}
+            {{ m.yesno(p.closable, "Close early", "No early close") }}
+            {{ m.yesno(p.pausable, "Pause", "No pause") }}
+            {{ m.yesno(p.renewable, "Renew", "No renewal") }}
+          </div></td>
+          <td class="num">{{ counts.get(p.id, 0) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

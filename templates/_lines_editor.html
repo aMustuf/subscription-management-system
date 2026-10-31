@@ -1,0 +1,46 @@
+{# Product lines editor shared by quotation templates and subscriptions.
+   Needs: rows (list of dicts), catalog (list of dicts), with_prices (bool), taxes (if with_prices) #}
+{% macro item_select(selected, invalid=False) %}
+<select class="form-select form-select-sm{% if invalid %} is-invalid{% endif %}" name="line_item" data-line-item aria-label="Product">
+  <option value="">Choose a product…</option>
+  {% for c in catalog %}
+  <option value="{{ c.key }}" data-price="{{ c.price }}" data-tax="{{ c.tax_id }}" {{ 'selected' if c.key == selected }}>{{ c.label }}</option>
+  {% endfor %}
+</select>
+{% endmacro %}
+
+{% macro tax_select(selected) %}
+<select class="form-select form-select-sm" name="line_tax" data-line-tax aria-label="Tax">
+  <option value="" data-rate="0">No tax</option>
+  {% for t in taxes %}<option value="{{ t.id }}" data-rate="{{ t.rate }}" {{ 'selected' if t.id|string == selected|string }}>{{ t.name }}</option>{% endfor %}
+</select>
+{% endmacro %}
+
+{% macro row(r) %}
+<tr class="line-row">
+  <td style="min-width: 260px">{{ item_select(r.item, r.error) }}{% if r.error %}<div class="invalid-feedback d-block">{{ r.error }}</div>{% endif %}</td>
+  <td style="width: 110px"><input class="form-control form-control-sm text-end" type="number" name="line_qty" min="1" step="1" value="{{ r.qty }}" data-line-qty aria-label="Quantity"></td>
+  {% if with_prices %}
+  <td style="width: 150px"><div class="input-group input-group-sm"><span class="input-group-text">₹</span><input class="form-control text-end" type="number" name="line_price" min="0" step="0.01" value="{{ r.price }}" data-line-price aria-label="Unit price"></div></td>
+  <td style="width: 140px">{{ tax_select(r.tax) }}</td>
+  <td class="num line-amount" data-line-amount>—</td>
+  {% endif %}
+  <td style="width: 44px" class="text-end"><button type="button" class="btn btn-sm btn-light" data-remove-line aria-label="Remove line"><i class="bi bi-x-lg" aria-hidden="true"></i></button></td>
+</tr>
+{% endmacro %}
+
+<div data-lines-root>
+<div class="table-responsive">
+  <table class="table table-app lines-table mb-0" data-lines-editor data-with-prices="{{ 1 if with_prices else 0 }}">
+    <thead><tr><th>Product</th><th class="num">Quantity</th>{% if with_prices %}<th class="num">Unit price</th><th>Tax</th><th class="num">Amount</th>{% endif %}<th></th></tr></thead>
+    <tbody>
+      {% for r in rows %}{{ row(r) }}{% endfor %}
+    </tbody>
+  </table>
+</div>
+<template data-line-template>{{ row({"item": "", "qty": "1", "price": "", "tax": "", "error": None}) }}</template>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mt-2">
+  <button type="button" class="btn btn-sm btn-outline-primary" data-add-line><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a line</button>
+  {% if form.errors.get("lines") %}<div class="text-danger small fw-semibold">{{ form.errors["lines"] }}</div>{% endif %}
+</div>
+</div>

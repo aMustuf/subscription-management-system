@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Team{% endblock %}
+{% block content %}
+{% call m.page_head("Team", "Admins control the whole system. Staff handle day-to-day work: customers, subscriptions, invoices and payments.") %}
+  <a class="btn btn-primary" href="{{ url_for('team.create') }}"><i class="bi bi-person-plus" aria-hidden="true"></i> Add staff member</a>
+{% endcall %}
+<section class="panel">
+  <div class="table-responsive">
+    <table class="table table-app">
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last login</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for u in members %}
+        <tr>
+          <td class="fw-semibold">{{ u.name }}{% if u.id == current_user.id %} <span class="tag">You</span>{% endif %}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ u.role_label }}</td>
+          <td>{{ u.last_login_at|datetime }}</td>
+          <td>{{ m.yesno(u.is_active_account, "Active", "Deactivated") }}</td>
+          <td class="text-end">
+            {% if u.id != current_user.id %}
+            <form method="post" action="{{ url_for('team.toggle', user_id=u.id) }}" data-confirm="{{ 'Deactivate' if u.is_active_account else 'Reactivate' }} {{ u.name }}?">
+              {{ m.csrf() }}<button class="btn btn-sm {{ 'btn-outline-danger' if u.is_active_account else 'btn-light' }}" type="submit">{{ "Deactivate" if u.is_active_account else "Reactivate" }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">Who can do what</h2></div>
+  <div class="table-responsive">
+    <table class="table table-app">
+      <thead><tr><th>Area</th><th>Admin</th><th>Staff</th><th>Customer</th></tr></thead>
+      <tbody>
+        <tr><td>Products, plans, taxes, discount rules</td><td>Create and edit</td><td>View</td><td>—</td></tr>
+        <tr><td>Team members</td><td>Add and deactivate</td><td>—</td><td>—</td></tr>
+        <tr><td>Customers, quotation templates</td><td>Full access</td><td>Full access</td><td>—</td></tr>
+        <tr><td>Subscriptions, invoices, payments</td><td>Full access</td><td>Full access</td><td>Own records in the portal</td></tr>
+        <tr><td>Dashboard and reports</td><td>Yes</td><td>Yes</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

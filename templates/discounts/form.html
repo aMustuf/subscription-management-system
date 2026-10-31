@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit discount" if discount else "New discount" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit " ~ discount.name if discount else "New discount", "Once saved, it's applied automatically to every matching invoice until it expires or reaches its usage limit.", [("Discounts", url_for('discounts.index'))]) }}
+<section class="panel" style="max-width: 860px">
+  <div class="panel-body">
+    {{ m.form_errors(form) }}
+    <form method="post" novalidate>
+      {{ m.csrf() }}
+      <div class="form-section">
+        <div class="row">
+          <div class="col-md-6">{{ m.input(form, "name", "Name", required=True, placeholder="Bulk seats 10%", attrs={"maxlength": "120"}) }}</div>
+          <div class="col-md-3">{{ m.select(form, "discount_type", "Type", [("percent", "Percentage"), ("fixed", "Fixed amount")], required=True) }}</div>
+          <div class="col-md-3">{{ m.input(form, "value", "Value", type="number", required=True, attrs={"min": "0.01", "step": "0.01"}, help="% or ₹ depending on type.") }}</div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">When it applies</div>
+        <div class="row">
+          <div class="col-md-6">{{ m.input(form, "min_purchase", "Minimum purchase", type="number", prefix="₹", attrs={"min": "0", "step": "0.01"}, help="Invoice amount before tax. 0 means no minimum.") }}</div>
+          <div class="col-md-6">{{ m.input(form, "min_quantity", "Minimum quantity", type="number", attrs={"min": "0", "step": "1"}, help="Total units, e.g. 10 seats. 0 means no minimum.") }}</div>
+          <div class="col-md-4">{{ m.input(form, "start_date", "Start date", type="date", required=True) }}</div>
+          <div class="col-md-4">{{ m.input(form, "end_date", "End date", type="date", required=True) }}</div>
+          <div class="col-md-4">{{ m.input(form, "usage_limit", "Usage limit", type="number", attrs={"min": "1", "step": "1"}, help="Times it can be used. Empty means no limit.") }}</div>
+        </div>
+      </div>
+      <div class="form-section">
+        {{ m.select(form, "applies_to", "Applies to", [("subscription", "Whole subscription"), ("products", "Specific products")], required=True, attrs={"data-toggle-target": "#product-picker", "data-toggle-value": "products"}) }}
+        <div id="product-picker" class="mb-3">
+          <div class="form-label">Products</div>
+          <div class="border rounded p-2" style="max-height: 220px; overflow:auto">
+            {% set chosen = form.values.get('product_ids') or [] %}
+            {% for p in products %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="product_ids" value="{{ p.id }}" id="dp-{{ p.id }}" {{ 'checked' if p.id|string in chosen }}>
+              <label class="form-check-label" for="dp-{{ p.id }}">{{ p.name }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          {{ m.field_error(form, "product_ids") }}
+        </div>
+        {{ m.checkbox(form, "active", "Active", help="Turn off to stop it without deleting it.") }}
+      </div>
+      {% if discount %}<p class="text-muted small">Used {{ discount.times_used }} time{{ "s" if discount.times_used != 1 }} so far.</p>{% endif %}
+      <div class="form-actions mt-3">
+        <button class="btn btn-primary" type="submit">Save discount</button>
+        <a class="btn btn-light" href="{{ url_for('discounts.index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

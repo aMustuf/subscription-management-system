@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit tax" if tax else "New tax" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit " ~ tax.name if tax else "New tax", None, [("Taxes", url_for('taxes.index'))]) }}
+<section class="panel" style="max-width: 640px">
+  <div class="panel-body">
+    {{ m.form_errors(form) }}
+    <form method="post" novalidate>
+      {{ m.csrf() }}
+      <div class="row">
+        <div class="col-md-7">{{ m.input(form, "name", "Name", required=True, placeholder="GST 18%", attrs={"maxlength": "60"}) }}</div>
+        <div class="col-md-5">{{ m.input(form, "rate", "Rate", type="number", required=True, suffix="%", attrs={"min": "0", "max": "100", "step": "0.01"}) }}</div>
+      </div>
+      {{ m.input(form, "description", "Description", attrs={"maxlength": "255"}) }}
+      {{ m.checkbox(form, "is_default", "Default tax", help="Used for products without their own tax, and for plan fees.") }}
+      {{ m.field_error(form, "is_default") }}
+      {{ m.checkbox(form, "active", "Active") }}
+      {{ m.field_error(form, "active") }}
+      <div class="form-actions mt-3">
+        <button class="btn btn-primary" type="submit">Save tax</button>
+        <a class="btn btn-light" href="{{ url_for('taxes.index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

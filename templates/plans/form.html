@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit plan" if plan else "New plan" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit " ~ plan.name if plan else "New plan", None, [("Plans", url_for('plans.index'))]) }}
+<section class="panel" style="max-width: 860px">
+  <div class="panel-body">
+    {{ m.form_errors(form) }}
+    <form method="post" novalidate>
+      {{ m.csrf() }}
+      <div class="form-section">
+        <div class="row">
+          <div class="col-md-6">{{ m.input(form, "name", "Name", required=True, attrs={"maxlength": "120"}) }}</div>
+          <div class="col-md-3">{{ m.input(form, "price", "Plan fee", type="number", required=True, prefix="₹", attrs={"min": "0", "step": "0.01"}, help="Charged every period, on top of product lines.") }}</div>
+          <div class="col-md-3">{{ m.select(form, "billing_period", "Bills", BILLING_PERIODS.items()|list, required=True) }}</div>
+          <div class="col-md-4">{{ m.input(form, "min_quantity", "Minimum quantity", type="number", required=True, attrs={"min": "1", "step": "1"}, help="Total units a subscription must have.") }}</div>
+          <div class="col-md-4">{{ m.input(form, "start_date", "Available from", type="date") }}</div>
+          <div class="col-md-4">{{ m.input(form, "end_date", "Available until", type="date", help="Leave empty to keep selling it.") }}</div>
+        </div>
+        {{ m.textarea(form, "description", "Description", rows=2, maxlength=1000) }}
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">What happens to subscriptions on this plan</div>
+        {{ m.checkbox(form, "auto_close", "Close automatically at the expiry date") }}
+        {{ m.checkbox(form, "closable", "Can be closed early") }}
+        {{ m.checkbox(form, "pausable", "Can be paused (billing stops while paused)") }}
+        {{ m.checkbox(form, "renewable", "Can be renewed for another term") }}
+      </div>
+      <div class="form-section">
+        {{ m.checkbox(form, "active", "Active", help="Inactive plans can't be used for new subscriptions.") }}
+      </div>
+      <div class="form-actions mt-3">
+        <button class="btn btn-primary" type="submit">Save plan</button>
+        <a class="btn btn-light" href="{{ url_for('plans.index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

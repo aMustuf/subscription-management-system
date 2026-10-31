@@ -38,6 +38,18 @@ On macOS/Linux use `python3 -m venv .venv`, then `.venv/bin/python` in place of 
 - Forgot password: a one-time reset link that expires in 1 hour is emailed to the registered address. Without email settings the message goes to the in-app Email outbox, and the demo shows the link on screen.
 - Three roles. **Admin** controls everything. **Staff** handle day-to-day work with limited access. **Customers** see only their own subscriptions and invoices in a portal. Only the admin can add staff.
 
+### Catalog (admin sets it up, staff can view)
+- **Products** with name, type (service, goods, add-on), sales price, cost price, margin, tax and notes.
+- **Variants** such as Brand: Odoo (+₹560). Final price = sales price + extra price.
+- **Taxes**: rates set by the admin. A line uses its product's tax, otherwise the default tax.
+- **Plans**: plan fee, billing period (daily, weekly, monthly, yearly), minimum quantity, availability dates, and per-plan rules: close automatically at expiry, close early, pause, renew.
+- **Discounts** (admin only): percentage or fixed amount, minimum purchase or quantity, start and end dates, usage limit, for whole subscriptions or specific products.
+
+### Sales
+- **Customers**: staff add customers and email them a portal invite (a 7-day link to set their password).
+- **Quotation templates**: a plan plus product lines and a validity period in days, ready to turn into a subscription.
+- **Team**: only the admin can add staff. New members get an invite link and choose their own password.
+
 ## Project structure
 
 ```

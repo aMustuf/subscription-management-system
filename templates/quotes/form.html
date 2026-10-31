@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit template" if template else "New template" }}{% endblock %}
+{% block content %}
+{{ m.page_head("Edit " ~ template.name if template else "New quotation template", None, [("Quotation templates", url_for('quotes.index'))]) }}
+<form method="post" novalidate>
+  {{ m.csrf() }}
+  {{ m.form_errors(form) }}
+  <section class="panel">
+    <div class="panel-body">
+      <div class="row">
+        <div class="col-md-5">{{ m.input(form, "name", "Template name", required=True, attrs={"maxlength": "120"}) }}</div>
+        <div class="col-md-4">{{ m.select(form, "plan_id", "Plan", plan_options, required=True, placeholder="Choose a plan") }}</div>
+        <div class="col-md-3">{{ m.input(form, "validity_days", "Quote valid for", type="number", required=True, suffix="days", attrs={"min": "1", "max": "365"}) }}</div>
+      </div>
+      {{ m.textarea(form, "notes", "Notes", rows=2, maxlength=2000) }}
+      {{ m.checkbox(form, "active", "Active", help="Inactive templates are hidden when creating subscriptions.") }}
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-header"><h2 class="panel-title">Product lines</h2><span class="text-muted small">Prices come from the catalog when the quote is created.</span></div>
+    <div class="panel-body">
+      {% include "_lines_editor.html" %}
+    </div>
+  </section>
+  <div class="form-actions mt-3">
+    <button class="btn btn-primary" type="submit">Save template</button>
+    <a class="btn btn-light" href="{{ url_for('quotes.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

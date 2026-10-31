@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+{% call m.page_head("Products", "What Brightloop sells. Variants change the price, e.g. choosing the Odoo brand adds ₹560.") %}
+  {% if current_user.is_admin %}<a class="btn btn-primary" href="{{ url_for('products.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New product</a>{% endif %}
+{% endcall %}
+<section class="panel">
+  <form class="filters" method="get" role="search">
+    <div class="grow">
+      <label class="form-label" for="q">Search</label>
+      <input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Product name or notes">
+    </div>
+    <div>
+      <label class="form-label" for="type">Type</label>
+      <select class="form-select" id="type" name="type" data-autosubmit>
+        <option value="">All types</option>
+        {% for key, text in PRODUCT_TYPES.items() %}<option value="{{ key }}" {{ 'selected' if ptype == key }}>{{ text }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="show">Show</label>
+      <select class="form-select" id="show" name="show" data-autosubmit>
+        <option value="active" {{ 'selected' if show == 'active' }}>On sale</option>
+        <option value="archived" {{ 'selected' if show == 'archived' }}>Archived</option>
+        <option value="all" {{ 'selected' if show == 'all' }}>All</option>
+      </select>
+    </div>
+    <button class="btn btn-outline-primary" type="submit">Search</button>
+  </form>
+  {% if pagination.items %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Product</th><th>Type</th><th class="num">Sales price</th><th class="num">Cost price</th><th class="num">Margin</th><th>Variants</th><th>Tax</th></tr></thead>
+      <tbody>
+      {% for p in pagination.items %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('products.detail', product_id=p.id) }}">{{ p.name }}</a>{% if not p.active %} <span class="tag tag-off">Archived</span>{% endif %}</td>
+          <td>{{ p.type_label }}</td>
+          <td class="num">{{ p.sales_price|money }}</td>
+          <td class="num">{{ p.cost_price|money }}</td>
+          <td class="num">{{ p.margin|money }}</td>
+          <td>{% for v in p.active_variants %}<span class="tag me-1">{{ v.value }}{% if v.extra_price %} +{{ v.extra_price|money }}{% endif %}</span>{% else %}<span class="text-muted">—</span>{% endfor %}</td>
+          <td>{{ p.tax.name if p.tax else "Default" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pager(pagination, "products") }}
+  {% else %}
+    {{ m.empty("box-seam", "No products match", "Change the filters" ~ (", or add a product." if current_user.is_admin else "."), url_for('products.create') if current_user.is_admin else None, "New product") }}
+  {% endif %}
+</section>
+{% endblock %}

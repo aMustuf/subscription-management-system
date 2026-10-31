@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Quotation templates{% endblock %}
+{% block content %}
+{% call m.page_head("Quotation templates", "Start an offer from a template instead of from scratch. Each one has a plan, product lines and a validity period.") %}
+  <a class="btn btn-primary" href="{{ url_for('quotes.edit') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New template</a>
+{% endcall %}
+<section class="panel">
+  {% if templates %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Template</th><th>Plan</th><th>Lines</th><th class="num">Valid for</th><th class="num">Price per period</th><th></th></tr></thead>
+      <tbody>
+      {% for t in templates %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('quotes.edit', template_id=t.id) }}">{{ t.name }}</a>{% if not t.active %} <span class="tag tag-off">Inactive</span>{% endif %}
+            {% if t.notes %}<span class="cell-sub">{{ t.notes }}</span>{% endif %}</td>
+          <td>{{ t.plan.name }}<span class="cell-sub">{{ t.plan.period_label }}</span></td>
+          <td class="small">{% for line in t.lines %}{{ line.quantity }} × {{ line.product.name }}{% if line.variant %} ({{ line.variant.value }}){% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+          <td class="num">{{ t.validity_days }} days</td>
+          <td class="num">{{ estimate(t)|money }}<span class="cell-sub">before tax</span></td>
+          <td class="text-end">
+            {% if t.active and endpoint_exists('subscriptions.create') %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('subscriptions.create', template_id=t.id) }}">Use template</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ m.empty("file-earmark-text", "No templates yet", "Save your usual offers as templates.", url_for('quotes.edit'), "New template") }}
+  {% endif %}
+</section>
+{% endblock %}

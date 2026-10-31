@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Taxes{% endblock %}
+{% block content %}
+{% call m.page_head("Taxes", "Each line uses its product's tax. Products without one use the default tax. Invoices calculate tax automatically.") %}
+  <a class="btn btn-primary" href="{{ url_for('taxes.edit') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New tax</a>
+{% endcall %}
+<section class="panel">
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Name</th><th class="num">Rate</th><th>Description</th><th class="num">Products using it</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for t in taxes %}
+        <tr>
+          <td><a class="row-link" href="{{ url_for('taxes.edit', tax_id=t.id) }}">{{ t.name }}</a>{% if t.is_default %} <span class="tag tag-on">Default</span>{% endif %}</td>
+          <td class="num">{{ "%.2f"|format(t.rate) }}%</td>
+          <td class="text-muted">{{ t.description or "—" }}</td>
+          <td class="num">{{ usage.get(t.id, 0) }}</td>
+          <td>{{ m.yesno(t.active, "Active", "Off") }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
