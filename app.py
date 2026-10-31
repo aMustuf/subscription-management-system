@@ -105,6 +105,7 @@ def create_app(config_class=Config) -> Flask:
 
     register_blueprints(app)
     register_template_helpers(app)
+    register_commands(app)
 
     # Start confirmed subscriptions and auto-close expired ones (runs at most once a minute)
     from services.subscriptions import housekeeping_once_a_minute
@@ -181,6 +182,35 @@ def register_template_helpers(app: Flask) -> None:
             "PAYMENT_TERMS": PAYMENT_TERMS,
             "PRODUCT_TYPES": PRODUCT_TYPES,
         }
+
+
+def register_commands(app: Flask) -> None:
+    """Command-line jobs, e.g. for Windows Task Scheduler or cron:
+
+        flask --app app run-billing      invoice everything due today
+        flask --app app send-reminders   email reminders for overdue invoices
+    """
+    import click
+
+    @app.cli.command("run-billing")
+    @click.option("--confirm", is_flag=True, help="Confirm the new invoices straight away.")
+    def run_billing_command(confirm):
+        from services.billing import run_billing
+
+        with app.test_request_context(base_url=app.config["APP_BASE_URL"]):
+            result = run_billing(auto_confirm=confirm)
+        click.echo(f"{len(result['invoices'])} invoice(s) created for {result['subscriptions']} due subscription(s).")
+
+    @app.cli.command("send-reminders")
+    def send_reminders_command():
+        from services.billing import overdue_invoices, send_reminder
+
+        with app.test_request_context(base_url=app.config["APP_BASE_URL"]):
+            invoices = overdue_invoices().all()
+            for invoice in invoices:
+                send_reminder(invoice)
+            db.session.commit()
+        click.echo(f"Sent {len(invoices)} reminder(s).")
 
 
 def register_error_pages(app: Flask) -> None:

@@ -2,6 +2,11 @@
 {% block title %}Invoices{% endblock %}
 {% block content %}
 {% call m.page_head("Invoices", "Created from subscriptions. See at a glance what's paid, what's outstanding and what's overdue.") %}
+  {% if status == 'overdue' and summary.count %}
+  <form method="post" action="{{ url_for('invoices.remind_overdue') }}" data-confirm="Email a payment reminder to every customer with an overdue invoice?">{{ m.csrf() }}
+    <button class="btn btn-marigold" type="submit"><i class="bi bi-bell" aria-hidden="true"></i> Remind all overdue</button></form>
+  {% endif %}
+  <a class="btn btn-outline-primary" href="{{ url_for('invoices.export', **page_args(page=None)) }}"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</a>
   <a class="btn btn-primary" href="{{ url_for('billing.run') }}"><i class="bi bi-lightning-charge" aria-hidden="true"></i> Run billing</a>
 {% endcall %}
 <div class="kpis">

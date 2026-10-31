@@ -75,10 +75,24 @@ On macOS/Linux use `python3 -m venv .venv`, then `.venv/bin/python` in place of 
 - Filters for period (this month, last month, quarter, year, last 12 months or custom dates) and plan.
 - Revenue collected per month (chart plus a table view), subscriptions by stage, overdue invoices, recurring revenue by plan, renewals coming up and the latest payments. Every number links to the matching filtered list.
 
+### Chasing overdue invoices and reports
+- **Payment reminders**: one click emails a reminder for a single invoice, or for every overdue invoice at once (from the dashboard or the Overdue list). Each reminder shows in the invoice's activity.
+- **Reports**: revenue by month (invoiced, discounts, tax, collected), by plan (active subscriptions, monthly recurring revenue) and top customers, for any date range.
+- **CSV downloads** of every report and of any filtered invoice list, ready for Excel or Google Sheets.
+
 ### Customer portal
 - Customers see only their own subscriptions and invoices (anything else returns "not found").
 - Accept or decline quotations, pause/resume, renew or close a subscription when its plan allows it, and switch add-ons on or off.
 - View, print and pay invoices (the "Pay now" button records a test payment; no real gateway is connected).
+
+## Scheduled jobs (optional)
+
+Billing and reminders can run without anyone clicking, e.g. from Windows Task Scheduler or cron:
+
+```
+.venv\Scripts\flask --app app run-billing --confirm
+.venv\Scripts\flask --app app send-reminders
+```
 
 ## Project structure
 

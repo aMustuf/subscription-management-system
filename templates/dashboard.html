@@ -83,7 +83,15 @@
 
   <div class="col-xl-7">
     <section class="panel h-100">
-      <div class="panel-header"><h2 class="panel-title">Overdue invoices</h2><a class="small" href="{{ url_for('invoices.index', status='overdue') }}">See all {{ overdue_count }}</a></div>
+      <div class="panel-header"><h2 class="panel-title">Overdue invoices</h2>
+        <div class="d-flex align-items-center gap-3">
+          {% if overdue_count %}
+          <form method="post" action="{{ url_for('invoices.remind_overdue') }}" data-confirm="Email a payment reminder for all {{ overdue_count }} overdue invoices?">{{ m.csrf() }}
+            <button class="btn btn-sm btn-marigold" type="submit"><i class="bi bi-bell" aria-hidden="true"></i> Remind all</button></form>
+          {% endif %}
+          <a class="small" href="{{ url_for('invoices.index', status='overdue') }}">See all {{ overdue_count }}</a>
+        </div>
+      </div>
       {% if overdue_list %}
       <div class="table-responsive">
         <table class="table table-app table-hover">

@@ -302,6 +302,36 @@ def send_invoice(invoice: Invoice) -> str:
     return f"{invoice.number} emailed to {invoice.bill_to_email}."
 
 
+def send_reminder(invoice: Invoice) -> str:
+    """Email the customer about an unpaid invoice (used to chase overdue ones)."""
+    from services.mailer import send_email
+    from utils import format_money
+
+    if invoice.status != "confirmed" or invoice.amount_due <= 0:
+        raise BillingError(f"{invoice.number} has nothing left to pay.")
+    link = url_for("portal.invoice", invoice_id=invoice.id, _external=True) \
+        if "portal.invoice" in current_app.view_functions else url_for("auth.login", _external=True)
+    late = (date.today() - invoice.due_date).days
+    when = f"was due on {invoice.due_date:%d %b %Y} ({late} days ago)" if late > 0 else \
+        f"is due on {invoice.due_date:%d %b %Y}"
+    send_email(
+        invoice.bill_to_email,
+        f"Reminder: invoice {invoice.number} {'is overdue' if late > 0 else 'is due soon'}",
+        f"Hi {invoice.bill_to_name},\n\nA friendly reminder that invoice {invoice.number} for "
+        f"{format_money(invoice.amount_total)} {when}. Amount still due: {format_money(invoice.amount_due)}.\n\n"
+        f"Pay online or download it here:\n{link}\n\n"
+        "If you've already paid, thank you, and please ignore this email.\n\n— Brightloop Software",
+        kind="reminder",
+    )
+    return f"Reminder for {invoice.number} emailed to {invoice.bill_to_email}."
+
+
+def overdue_invoices(today: date | None = None):
+    today = today or date.today()
+    return Invoice.query.filter(Invoice.status == "confirmed", Invoice.due_date < today,
+                                Invoice.amount_total > Invoice.amount_paid)
+
+
 # ---------------------------------------------------------------------------
 # Payments
 # ---------------------------------------------------------------------------

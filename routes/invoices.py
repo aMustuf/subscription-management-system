@@ -9,15 +9,18 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
 from extensions import db
-from models import INVOICE_STATUSES, PAYMENT_METHODS, Invoice, Subscription, User, money
+from models import INVOICE_STATUSES, PAYMENT_METHODS, EmailLog, Invoice, Subscription, User, money
 from services.billing import (
     BillingError,
     bill_next_period,
     cancel_invoice,
     confirm_invoice,
+    overdue_invoices,
     record_payment,
     send_invoice,
+    send_reminder,
 )
+from services.exports import csv_response
 from utils import Form, current_page, staff_required
 
 bp = Blueprint("invoices", __name__, url_prefix="/invoices")
@@ -91,6 +94,40 @@ def index():
                                     "due": money(summary[1]) - money(summary[2])})
 
 
+@bp.route("/export.csv")
+@staff_required
+def export():
+    """Download the invoices in the current view as a spreadsheet-friendly CSV file."""
+    status = request.args.get("status", "")
+    query = filtered_invoices(status if status in FILTERS else "", request.args.get("q", "").strip(),
+                              _parse_date(request.args.get("from")), _parse_date(request.args.get("to")))
+    rows = []
+    for inv in query.options(joinedload(Invoice.customer), joinedload(Invoice.subscription)).order_by(
+            Invoice.invoice_date.desc(), Invoice.id.desc()):
+        rows.append([inv.number, inv.customer.display_name, inv.bill_to_email,
+                     inv.subscription.number if inv.subscription else "", inv.invoice_date.isoformat(),
+                     inv.due_date.isoformat(), inv.period_start.isoformat() if inv.period_start else "",
+                     inv.period_end.isoformat() if inv.period_end else "", "Overdue" if inv.is_overdue else inv.status_label,
+                     inv.amount_untaxed, inv.amount_discount, inv.amount_tax, inv.amount_total, inv.amount_paid,
+                     inv.amount_due])
+    header = ["Invoice", "Customer", "Email", "Subscription", "Invoice date", "Due date", "Period start",
+              "Period end", "Status", "Subtotal", "Discount", "Tax", "Total", "Paid", "Due"]
+    return csv_response(f"invoices-{date.today():%Y-%m-%d}.csv", header, rows)
+
+
+@bp.route("/remind-overdue", methods=["POST"])
+@staff_required
+def remind_overdue():
+    sent = 0
+    for invoice in overdue_invoices().all():
+        send_reminder(invoice)
+        sent += 1
+    db.session.commit()
+    flash(f"Sent {sent} reminder{'s' if sent != 1 else ''} for overdue invoices." if sent else
+          "No overdue invoices, so no reminders were needed.", "success" if sent else "info")
+    return redirect(request.referrer or url_for("invoices.index", status="overdue"))
+
+
 @bp.route("/<int:invoice_id>")
 @staff_required
 def detail(invoice_id):
@@ -98,7 +135,12 @@ def detail(invoice_id):
     payment_form = Form(None, initial={"amount": invoice.amount_due, "payment_date": date.today(),
                                        "method": "bank_transfer"})
     return render_template("invoices/detail.html", invoice=invoice, payment_form=payment_form,
-                           methods=PAYMENT_METHODS)
+                           methods=PAYMENT_METHODS, reminders=_reminders(invoice))
+
+
+def _reminders(invoice):
+    return EmailLog.query.filter(EmailLog.kind == "reminder", EmailLog.subject.contains(invoice.number)).order_by(
+        EmailLog.created_at.desc()).all()
 
 
 @bp.route("/<int:invoice_id>/print")
@@ -139,6 +181,8 @@ def act(invoice_id, action):
             message = cancel_invoice(invoice, current_user)
         elif action == "send":
             message = send_invoice(invoice)
+        elif action == "remind":
+            message = send_reminder(invoice)
         else:
             abort(404)
     except BillingError as exc:
@@ -181,4 +225,5 @@ def add_payment(invoice_id):
                 f"{invoice.amount_due} is still due."
             flash(f"Payment {payment.number} recorded. {state}", "success")
             return redirect(url_for("invoices.detail", invoice_id=invoice.id))
-    return render_template("invoices/detail.html", invoice=invoice, payment_form=form, methods=PAYMENT_METHODS)
+    return render_template("invoices/detail.html", invoice=invoice, payment_form=form, methods=PAYMENT_METHODS,
+                           reminders=_reminders(invoice))

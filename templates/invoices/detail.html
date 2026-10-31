@@ -8,6 +8,9 @@
   {% if invoice.status != 'cancelled' %}
   <form method="post" action="{{ url_for('invoices.act', invoice_id=invoice.id, action='send') }}">{{ m.csrf() }}<button class="btn btn-outline-primary" type="submit"><i class="bi bi-envelope" aria-hidden="true"></i> {{ "Resend" if invoice.sent_at else "Send" }}{% if invoice.status == 'draft' %} (confirms it){% endif %}</button></form>
   {% endif %}
+  {% if invoice.status == 'confirmed' and invoice.amount_due|float > 0 %}
+  <form method="post" action="{{ url_for('invoices.act', invoice_id=invoice.id, action='remind') }}">{{ m.csrf() }}<button class="btn {{ 'btn-marigold' if invoice.is_overdue else 'btn-outline-primary' }}" type="submit"><i class="bi bi-bell" aria-hidden="true"></i> Send reminder</button></form>
+  {% endif %}
   <a class="btn btn-outline-primary" href="{{ url_for('invoices.print_view', invoice_id=invoice.id) }}" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Print</a>
   {% if invoice.status in ('draft', 'confirmed') and invoice.amount_paid|float == 0 %}
   <form method="post" action="{{ url_for('invoices.act', invoice_id=invoice.id, action='cancel') }}" data-confirm="Cancel {{ invoice.number }}? This can't be undone.">{{ m.csrf() }}<button class="btn btn-outline-danger" type="submit">Cancel invoice</button></form>
@@ -69,6 +72,7 @@
       <div class="panel-header"><h2 class="panel-title">Activity</h2></div>
       <div class="panel-body">
         <ul class="timeline">
+          {% for r in reminders %}<li>Payment reminder emailed<div class="when">{{ r.created_at|datetime }}</div></li>{% endfor %}
           {% if invoice.cancelled_at %}<li>Cancelled<div class="when">{{ invoice.cancelled_at|datetime }}</div></li>{% endif %}
           {% if invoice.paid_at %}<li>Paid in full<div class="when">{{ invoice.paid_at|datetime }}</div></li>{% endif %}
           {% if invoice.sent_at %}<li>Emailed to {{ invoice.bill_to_email }}<div class="when">{{ invoice.sent_at|datetime }}</div></li>{% endif %}

@@ -28,6 +28,9 @@ class Config:
 
     ITEMS_PER_PAGE = 20
 
+    # Used for links in emails sent from command-line jobs (outside a web request)
+    APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://127.0.0.1:5000")
+
     # Create demo data automatically the first time the app starts
     AUTO_SEED = os.environ.get("AUTO_SEED", "1") == "1"
 

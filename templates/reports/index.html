@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+{{ m.page_head("Reports", "Revenue for " ~ (start|date) ~ " to " ~ (end|date) ~ ". Download any table as a CSV for Excel or Google Sheets.") }}
+
+<form class="panel filters mb-3" method="get" aria-label="Report dates">
+  <div><label class="form-label" for="from">From</label><input class="form-control" type="date" id="from" name="from" value="{{ start.isoformat() }}"></div>
+  <div><label class="form-label" for="to">To</label><input class="form-control" type="date" id="to" name="to" value="{{ end.isoformat() }}"></div>
+  <button class="btn btn-outline-primary" type="submit">Update</button>
+</form>
+
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Invoiced</div><div class="kpi-value">{{ totals.invoiced|money }}</div><div class="kpi-note">{{ totals.invoices }} invoices</div></div>
+  <div class="kpi"><div class="kpi-label">Collected</div><div class="kpi-value">{{ totals.collected|money }}</div></div>
+  <div class="kpi"><div class="kpi-label">Discounts given</div><div class="kpi-value">{{ totals.discounts|money }}</div></div>
+  <div class="kpi"><div class="kpi-label">Tax billed</div><div class="kpi-value">{{ totals.tax|money }}</div></div>
+</div>
+
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">By month</h2>
+    <a class="btn btn-sm btn-light" href="{{ url_for('reports.export', kind='months', **{'from': start.isoformat(), 'to': end.isoformat()}) }}"><i class="bi bi-download" aria-hidden="true"></i> CSV</a></div>
+  <div class="table-responsive">
+    <table class="table table-app">
+      <thead><tr><th>Month</th><th class="num">Invoices</th><th class="num">Invoiced</th><th class="num">Discounts</th><th class="num">Tax</th><th class="num">Collected</th></tr></thead>
+      <tbody>
+        {% for r in months %}<tr><td>{{ r.month }}</td><td class="num">{{ r.invoices }}</td><td class="num">{{ r.invoiced|money }}</td><td class="num">{{ r.discounts|money }}</td><td class="num">{{ r.tax|money }}</td><td class="num">{{ r.collected|money }}</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><td>Total</td><td class="num">{{ totals.invoices }}</td><td class="num">{{ totals.invoiced|money }}</td><td class="num">{{ totals.discounts|money }}</td><td class="num">{{ totals.tax|money }}</td><td class="num">{{ totals.collected|money }}</td></tr></tfoot>
+    </table>
+  </div>
+</section>
+
+<div class="row g-3 mt-0">
+  <div class="col-xl-6">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">By plan</h2>
+        <a class="btn btn-sm btn-light" href="{{ url_for('reports.export', kind='plans', **{'from': start.isoformat(), 'to': end.isoformat()}) }}"><i class="bi bi-download" aria-hidden="true"></i> CSV</a></div>
+      <div class="table-responsive">
+        <table class="table table-app">
+          <thead><tr><th>Plan</th><th class="num">Active</th><th class="num">Per month now</th><th class="num">Invoiced</th><th class="num">Collected</th></tr></thead>
+          <tbody>{% for r in plans %}<tr><td>{{ r.plan }}<span class="cell-sub">{{ r.period }}</span></td><td class="num">{{ r.active }}</td><td class="num">{{ r.mrr|money }}</td><td class="num">{{ r.invoiced|money }}</td><td class="num">{{ r.collected|money }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <div class="col-xl-6">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Top customers</h2>
+        <a class="btn btn-sm btn-light" href="{{ url_for('reports.export', kind='customers', **{'from': start.isoformat(), 'to': end.isoformat()}) }}"><i class="bi bi-download" aria-hidden="true"></i> CSV</a></div>
+      {% if customers %}
+      <div class="table-responsive">
+        <table class="table table-app">
+          <thead><tr><th>Customer</th><th class="num">Invoiced</th><th class="num">Collected</th><th class="num">Owed now</th></tr></thead>
+          <tbody>{% for r in customers[:12] %}<tr><td>{{ r.customer }}<span class="cell-sub">{{ r.invoices }} invoice{{ "s" if r.invoices != 1 }}</span></td><td class="num">{{ r.invoiced|money }}</td><td class="num">{{ r.collected|money }}</td><td class="num">{{ r.owed|money }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% else %}{{ m.empty("people", "No invoices in these dates") }}{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
