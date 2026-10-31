@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}My subscriptions{% endblock %}
+{% block content %}
+{{ m.page_head("Subscriptions", "Open one to see its lines, invoices and what you can change.") }}
+<section class="panel">
+  {% if subscriptions %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Number</th><th>Plan</th><th>Status</th><th>Start</th><th>Expiry</th><th class="num">Per period</th></tr></thead>
+      <tbody>
+      {% for s in subscriptions %}
+        <tr>
+          <td><a class="row-link mono-id" href="{{ url_for('portal.subscription', sub_id=s.id) }}">{{ s.number }}</a></td>
+          <td>{{ s.plan.name }}</td>
+          <td>{{ m.sub_status(s) }}</td>
+          <td class="text-nowrap">{{ s.start_date|date }}</td>
+          <td class="text-nowrap">{{ s.expiry_date|date }}</td>
+          <td class="num">{{ s.amount_total|money }}<span class="cell-sub">per {{ s.plan.period_unit }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ m.empty("arrow-repeat", "No subscriptions yet") }}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,21 +1,73 @@
 {% extends "base.html" %}
 {% block title %}My account{% endblock %}
 {% block content %}
-{{ m.page_head("Hello, " ~ current_user.name.split()[0], "Your subscriptions and invoices with " ~ company.name ~ ".") }}
+{{ m.page_head("Hello, " ~ current_user.name.split()[0], "Your subscriptions and invoices with " ~ company.name ~ ". Manage them here without emailing anyone.") }}
+
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Live subscriptions</div><div class="kpi-value">{{ live|length }}</div></div>
+  <div class="kpi"><a href="{{ url_for('portal.invoices', show='open') }}"><div class="kpi-label">Amount due</div><div class="kpi-value {{ 'bad' if open_invoices|selectattr('is_overdue')|list }}">{{ amount_due|money }}</div>
+    <div class="kpi-note">{{ open_invoices|length }} open invoice{{ "s" if open_invoices|length != 1 }}</div></a></div>
+  <div class="kpi"><div class="kpi-label">Next invoice</div><div class="kpi-value">{{ next_invoice|date if next_invoice else "—" }}</div></div>
+  <div class="kpi"><div class="kpi-label">Quotations waiting</div><div class="kpi-value">{{ quotes|length }}</div></div>
+</div>
+
+{% for q in quotes %}
 <section class="panel">
-  <div class="panel-header"><h2 class="panel-title">Your subscriptions</h2></div>
-  {% if subscriptions %}
+  <div class="panel-header">
+    <h2 class="panel-title">Quotation {{ q.number }} is waiting for you</h2>
+    {% if q.is_quotation_expired %}{{ m.status("expired-quote", "Expired") }}{% else %}<span class="small text-muted">Valid until {{ q.quotation_valid_until|date }}</span>{% endif %}
+  </div>
+  <div class="panel-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <div class="fw-semibold">{{ q.plan.name }}: {{ q.amount_total|money }} per {{ q.plan.period_unit }}, starting {{ q.start_date|date }}</div>
+      <div class="small text-muted">{% for line in q.lines %}{{ line.quantity }} × {{ line.label }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary" href="{{ url_for('portal.subscription', sub_id=q.id) }}">Review</a>
+      {% if not q.is_quotation_expired %}
+      <form method="post" action="{{ url_for('portal.subscription_action', sub_id=q.id, action='confirm') }}">{{ m.csrf() }}<button class="btn btn-primary" type="submit">Accept quotation</button></form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endfor %}
+
+{% if open_invoices %}
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">Invoices to pay</h2></div>
   <div class="table-responsive">
     <table class="table table-app">
-      <thead><tr><th>Number</th><th>Plan</th><th>Status</th><th>Started</th><th class="num">Per period</th></tr></thead>
+      <thead><tr><th>Invoice</th><th>Due</th><th>Status</th><th class="num">Amount due</th><th></th></tr></thead>
+      <tbody>
+      {% for inv in open_invoices %}
+        <tr>
+          <td><a class="row-link mono-id" href="{{ url_for('portal.invoice', invoice_id=inv.id) }}">{{ inv.number }}</a></td>
+          <td class="text-nowrap">{{ inv.due_date|date }}</td>
+          <td>{{ m.invoice_status(inv) }}</td>
+          <td class="num">{{ inv.amount_due|money }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-success" href="{{ url_for('portal.invoice', invoice_id=inv.id) }}#pay">Pay</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">Your subscriptions</h2><a class="small" href="{{ url_for('portal.subscriptions') }}">See all</a></div>
+  {% if subscriptions %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Number</th><th>Plan</th><th>Status</th><th>Next invoice</th><th class="num">Per period</th></tr></thead>
       <tbody>
         {% for s in subscriptions %}
         <tr>
-          <td class="mono-id">{{ s.number }}</td>
+          <td><a class="row-link mono-id" href="{{ url_for('portal.subscription', sub_id=s.id) }}">{{ s.number }}</a></td>
           <td>{{ s.plan.name }}</td>
           <td>{{ m.sub_status(s) }}</td>
-          <td>{{ s.start_date|date }}</td>
-          <td class="num">{{ s.amount_total|money }}</td>
+          <td>{{ s.next_invoice_date|date if s.status == 'active' else "—" }}</td>
+          <td class="num">{{ s.amount_total|money }}<span class="cell-sub">per {{ s.plan.period_unit }}</span></td>
         </tr>
         {% endfor %}
       </tbody>

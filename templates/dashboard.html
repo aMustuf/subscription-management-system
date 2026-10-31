@@ -1,17 +1,209 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-{{ m.page_head("Dashboard", "Hello " ~ current_user.name.split()[0] ~ ". Here's where the business stands today.") }}
-<div class="kpis">
-  <div class="kpi"><div class="kpi-label">Active subscriptions</div><div class="kpi-value">{{ counts.subscriptions }}</div></div>
-  <div class="kpi"><div class="kpi-label">Customers</div><div class="kpi-value">{{ counts.customers }}</div></div>
-  <div class="kpi"><div class="kpi-label">Products on sale</div><div class="kpi-value">{{ counts.products }}</div></div>
-  <div class="kpi"><div class="kpi-label">Plans</div><div class="kpi-value">{{ counts.plans }}</div></div>
-</div>
-<section class="panel">
-  <div class="panel-header"><h2 class="panel-title">Getting started</h2></div>
-  <div class="panel-body">
-    <p class="mb-0 text-muted">Revenue, payments and overdue invoices appear here once billing is running.</p>
+{% call m.page_head("Dashboard", "Subscriptions, revenue, payments and overdue invoices for " ~ (start|date) ~ " to " ~ (end|date) ~ (" on the " ~ plan.name ~ " plan" if plan else "") ~ ".") %}
+  {% if drafts %}<a class="btn btn-outline-primary" href="{{ url_for('invoices.index', status='draft') }}">{{ drafts }} draft invoice{{ "s" if drafts != 1 }} to review</a>{% endif %}
+  <a class="btn btn-primary" href="{{ url_for('billing.run') }}"><i class="bi bi-lightning-charge" aria-hidden="true"></i> Run billing</a>
+{% endcall %}
+
+<form class="panel filters mb-3" method="get" aria-label="Dashboard filters">
+  <div>
+    <label class="form-label" for="period">Period</label>
+    <select class="form-select" id="period" name="period" data-toggle-target="#custom-dates" data-toggle-value="custom">
+      {% for key, text in periods.items() %}<option value="{{ key }}" {{ 'selected' if period == key }}>{{ text }}</option>{% endfor %}
+    </select>
   </div>
-</section>
+  <div id="custom-dates" class="d-flex gap-2">
+    <div><label class="form-label" for="from">From</label><input class="form-control" type="date" id="from" name="from" value="{{ raw_from }}"></div>
+    <div><label class="form-label" for="to">To</label><input class="form-control" type="date" id="to" name="to" value="{{ raw_to }}"></div>
+  </div>
+  <div>
+    <label class="form-label" for="plan">Plan</label>
+    <select class="form-select" id="plan" name="plan">
+      <option value="">All plans</option>
+      {% for p in plans %}<option value="{{ p.id }}" {{ 'selected' if plan and plan.id == p.id }}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-outline-primary" type="submit">Apply</button>
+  {% if period != 'this_month' or plan %}<a class="btn btn-light" href="{{ url_for('main.dashboard') }}">Reset</a>{% endif %}
+</form>
+
+<div class="kpis kpis-5">
+  <div class="kpi"><a href="{{ url_for('subscriptions.index', status='active') }}">
+    <div class="kpi-label">Active subscriptions</div><div class="kpi-value">{{ "{:,}".format(active) }}</div>
+    <div class="kpi-note">{{ paused }} paused</div></a></div>
+  <div class="kpi"><div class="kpi-label">Monthly recurring revenue</div><div class="kpi-value">{{ mrr|money }}</div>
+    <div class="kpi-note">{{ (mrr * 12)|money }} a year, before tax</div></div>
+  <div class="kpi"><a href="{{ url_for('payments.index', **{'from': start.isoformat(), 'to': end.isoformat()}) }}">
+    <div class="kpi-label">Revenue collected</div><div class="kpi-value">{{ collected|money }}</div>
+    <div class="kpi-note">{{ payment_count }} payment{{ "s" if payment_count != 1 }}, {{ invoiced|money }} invoiced</div></a></div>
+  <div class="kpi"><a href="{{ url_for('invoices.index', status='outstanding') }}">
+    <div class="kpi-label">Still owed</div><div class="kpi-value">{{ outstanding|money }}</div>
+    <div class="kpi-note">on confirmed invoices, today</div></a></div>
+  <div class="kpi"><a href="{{ url_for('invoices.index', status='overdue') }}">
+    <div class="kpi-label">Overdue</div><div class="kpi-value {{ 'bad' if overdue_count }}">{{ overdue_total|money }}</div>
+    <div class="kpi-note">{{ overdue_count }} invoice{{ "s" if overdue_count != 1 }} past due date</div></a></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Revenue collected per month</h2><span class="text-muted small">Payments received, including tax</span></div>
+      <div class="panel-body">
+        <div style="position: relative; height: 260px"><canvas id="revenueChart" role="img" aria-label="Bar chart of revenue collected per month"></canvas></div>
+        <details class="mt-2 small">
+          <summary class="text-muted">Show as a table</summary>
+          <table class="table table-sm mt-2 mb-0" style="max-width: 360px">
+            <thead><tr><th>Month</th><th class="num">Collected</th></tr></thead>
+            <tbody>{% for row in months %}<tr><td>{{ row.label }}</td><td class="num">{{ row.value|money }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </details>
+      </div>
+    </section>
+  </div>
+  <div class="col-xl-4">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Subscriptions by stage</h2></div>
+      <div class="panel-body">
+        {% set top = stages|map(attribute=2)|max or 1 %}
+        <ul class="stage-bars">
+          {% for key, label, count in stages %}
+          <li>
+            <a href="{{ url_for('subscriptions.index', status=key) }}">
+              <span class="stage-name">{{ label }}</span>
+              <span class="stage-track"><span class="stage-fill" style="width: {{ (count / top * 100)|round(1) }}%"></span></span>
+              <span class="stage-count">{{ count }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <div class="col-xl-7">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Overdue invoices</h2><a class="small" href="{{ url_for('invoices.index', status='overdue') }}">See all {{ overdue_count }}</a></div>
+      {% if overdue_list %}
+      <div class="table-responsive">
+        <table class="table table-app table-hover">
+          <thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="num">Owed</th></tr></thead>
+          <tbody>
+          {% for inv in overdue_list %}
+            <tr>
+              <td><a class="row-link mono-id" href="{{ url_for('invoices.detail', invoice_id=inv.id) }}">{{ inv.number }}</a></td>
+              <td>{{ inv.customer.display_name }}</td>
+              <td class="text-nowrap">{{ inv.due_date|date }}<span class="cell-sub text-danger">{{ inv.days_overdue }} days late</span></td>
+              <td class="num">{{ inv.amount_due|money }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ m.empty("check2-circle", "Nothing overdue", "Every confirmed invoice is within its payment terms.") }}
+      {% endif %}
+    </section>
+  </div>
+  <div class="col-xl-5">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Recurring revenue by plan</h2><span class="text-muted small">Per month, active only</span></div>
+      {% if plan_rows %}
+      <div class="table-responsive">
+        <table class="table table-app">
+          <thead><tr><th>Plan</th><th class="num">Active</th><th class="num">Per month</th></tr></thead>
+          <tbody>{% for name, count, value in plan_rows %}<tr><td>{{ name }}</td><td class="num">{{ count }}</td><td class="num">{{ value|money }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% else %}{{ m.empty("calendar3", "No active subscriptions") }}{% endif %}
+    </section>
+  </div>
+
+  <div class="col-xl-6">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Ending in the next 45 days</h2></div>
+      {% if expiring %}
+      <ul class="list-group list-group-flush">
+        {% for s in expiring %}
+        <li class="list-group-item d-flex justify-content-between gap-2">
+          <span><a class="row-link mono-id" href="{{ url_for('subscriptions.detail', sub_id=s.id) }}">{{ s.number }}</a> {{ s.customer.display_name }}
+            <span class="cell-sub">{{ s.plan.name }}, {{ "closes automatically" if s.plan.auto_close else "renew or close" }}</span></span>
+          <span class="text-nowrap small">{{ s.expiry_date|date }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}{{ m.empty("calendar-check", "No renewals coming up") }}{% endif %}
+    </section>
+  </div>
+  <div class="col-xl-6">
+    <section class="panel h-100">
+      <div class="panel-header"><h2 class="panel-title">Latest payments</h2><a class="small" href="{{ url_for('payments.index') }}">All payments</a></div>
+      {% if recent_payments %}
+      <ul class="list-group list-group-flush">
+        {% for p in recent_payments %}
+        <li class="list-group-item d-flex justify-content-between gap-2">
+          <span>{{ p.invoice.customer.display_name }}<span class="cell-sub">{{ p.payment_date|date }}, {{ p.method_label }}, <a href="{{ url_for('invoices.detail', invoice_id=p.invoice_id) }}">{{ p.invoice.number }}</a></span></span>
+          <span class="tabular fw-semibold">{{ p.amount|money }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}{{ m.empty("cash-coin", "No payments in this period") }}{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+  (function () {
+    var months = {{ months|tojson }};
+    var el = document.getElementById("revenueChart");
+    if (!el || !window.Chart) return;
+    var inr = window.brightloopInr;
+    function compact(v) {
+      if (v >= 10000000) return "₹" + (v / 10000000).toFixed(1).replace(/\.0$/, "") + " Cr";
+      if (v >= 100000) return "₹" + (v / 100000).toFixed(1).replace(/\.0$/, "") + " L";
+      if (v >= 10000) return "₹" + Math.round(v / 1000) + "K";
+      return "₹" + v.toLocaleString("en-IN");
+    }
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.color = "#5d6480";
+    new Chart(el, {
+      type: "bar",
+      data: {
+        labels: months.map(function (m) { return m.tick; }),
+        datasets: [{
+          label: "Collected",
+          data: months.map(function (m) { return m.value; }),
+          backgroundColor: "#3346c4",
+          hoverBackgroundColor: "#24339a",
+          borderRadius: { topLeft: 4, topRight: 4 },
+          borderSkipped: "start",
+          maxBarThickness: 24
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? false : { duration: 400 },
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#1e2340", padding: 10, displayColors: false,
+            callbacks: {
+              title: function (items) { return months[items[0].dataIndex].label; },
+              label: function (ctx) { return "Collected " + inr(ctx.parsed.y); }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, border: { color: "#cdd2e1" }, ticks: { maxRotation: 0, autoSkip: true } },
+          y: { beginAtZero: true, border: { display: false }, grid: { color: "#e9ebf2" },
+               ticks: { maxTicksLimit: 5, callback: function (v) { return compact(v); } } }
+        }
+      }
+    });
+  })();
+</script>
 {% endblock %}

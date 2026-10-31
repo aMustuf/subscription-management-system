@@ -54,6 +54,7 @@
 }
 
 body { -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
 h1, h2, h3, h4, h5 { color: var(--ink); font-weight: 700; letter-spacing: -0.01em; }
 .text-muted, .form-text { color: var(--muted) !important; }
 .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
@@ -202,6 +203,17 @@ h1, h2, h3, h4, h5 { color: var(--ink); font-weight: 700; letter-spacing: -0.01e
   .kpi { border-left: 0; }
   .kpi:nth-child(n + 2) { border-top: 1px solid var(--line); }
 }
+
+@media (min-width: 1200px) { .kpis-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.kpis-5 .kpi-value { font-size: clamp(1.15rem, 1.45vw, 1.5rem); }
+
+/* ---------- Stage bars (dashboard) ---------- */
+.stage-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.stage-bars a { display: grid; grid-template-columns: 92px 1fr 44px; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; font-size: 0.9rem; }
+.stage-bars a:hover .stage-name { color: var(--link); text-decoration: underline; }
+.stage-track { height: 12px; background: #eef0f5; border-radius: 0 4px 4px 0; overflow: hidden; }
+.stage-fill { display: block; height: 100%; background: #3346c4; border-radius: 0 4px 4px 0; min-width: 2px; }
+.stage-count { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 
 /* ---------- Subscription lifecycle rail ---------- */
 .rail { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 4px 0 0; margin: 0; }

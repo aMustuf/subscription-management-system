@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.number }}{% endblock %}
+{% block content %}
+{% call m.page_head(invoice.number, "Invoice for " ~ (invoice.period_start|date) ~ " to " ~ (invoice.period_end|date), [("Invoices", url_for('portal.invoices'))]) %}
+  <a class="btn btn-outline-primary" href="{{ url_for('portal.print_invoice', invoice_id=invoice.id) }}" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Print or save PDF</a>
+{% endcall %}
+<div class="row g-3">
+  <div class="col-xl-8"><section class="panel">{% include "invoices/_document.html" %}</section></div>
+  <div class="col-xl-4">
+    {% if invoice.status == 'confirmed' %}
+    <section class="panel" id="pay">
+      <div class="panel-header"><h2 class="panel-title">Pay this invoice</h2></div>
+      <div class="panel-body">
+        <p class="fs-4 fw-bold tabular mb-1">{{ invoice.amount_due|money }}</p>
+        <p class="small text-muted">Due {{ invoice.due_date|date }}{% if invoice.is_overdue %}, <span class="text-danger">{{ invoice.days_overdue }} days late</span>{% endif %}.</p>
+        <form method="post" action="{{ url_for('portal.pay', invoice_id=invoice.id) }}" data-confirm="Pay {{ invoice.amount_due|money }} now?">
+          {{ m.csrf() }}<button class="btn btn-success w-100" type="submit"><i class="bi bi-lock" aria-hidden="true"></i> Pay now</button>
+        </form>
+        <p class="small text-muted mt-2 mb-0">Test payment for the demo: no card is charged. You can also pay by bank transfer or UPI with {{ invoice.number }} as the reference.</p>
+      </div>
+    </section>
+    {% endif %}
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Payments</h2></div>
+      {% if invoice.payments %}
+      <ul class="list-group list-group-flush">
+        {% for p in invoice.payments %}
+        <li class="list-group-item"><span class="fw-semibold">{{ p.amount|money }}</span> by {{ p.method_label }}<div class="small text-muted">{{ p.payment_date|date }}, receipt {{ p.number }}</div></li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="panel-body small text-muted">No payments yet.</div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

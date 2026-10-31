@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}My invoices{% endblock %}
+{% block content %}
+{{ m.page_head("Invoices", "You owe " ~ (amount_due|money) ~ " on open invoices.") }}
+<section class="panel">
+  <nav class="d-flex flex-wrap gap-2 p-3 border-bottom" aria-label="Filter invoices">
+    <a class="btn btn-sm {{ 'btn-primary' if not show else 'btn-light' }}" href="{{ url_for('portal.invoices') }}">All</a>
+    <a class="btn btn-sm {{ 'btn-primary' if show == 'open' else 'btn-light' }}" href="{{ url_for('portal.invoices', show='open') }}">To pay</a>
+    <a class="btn btn-sm {{ 'btn-primary' if show == 'paid' else 'btn-light' }}" href="{{ url_for('portal.invoices', show='paid') }}">Paid</a>
+  </nav>
+  {% if invoices %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Invoice</th><th>Date</th><th>Due</th><th>Status</th><th class="num">Total</th><th class="num">Due now</th></tr></thead>
+      <tbody>
+      {% for inv in invoices %}
+        <tr>
+          <td><a class="row-link mono-id" href="{{ url_for('portal.invoice', invoice_id=inv.id) }}">{{ inv.number }}</a></td>
+          <td class="text-nowrap">{{ inv.invoice_date|date }}</td>
+          <td class="text-nowrap">{{ inv.due_date|date }}</td>
+          <td>{{ m.invoice_status(inv) }}</td>
+          <td class="num">{{ inv.amount_total|money }}</td>
+          <td class="num">{{ inv.amount_due|money }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ m.empty("receipt", "No invoices here") }}
+  {% endif %}
+</section>
+{% endblock %}

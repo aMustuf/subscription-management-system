@@ -70,6 +70,16 @@ On macOS/Linux use `python3 -m venv .venv`, then `.venv/bin/python` in place of 
 - Invoice lists filter by paid, outstanding and overdue, with totals for invoiced, collected and still owed.
 - **Email outbox**: every email the system sends (reset links, invites, quotations, invoices) is listed in the app.
 
+### Finance dashboard
+- One page for the finance lead: active subscriptions, monthly recurring revenue, revenue collected, amount still owed and overdue invoices.
+- Filters for period (this month, last month, quarter, year, last 12 months or custom dates) and plan.
+- Revenue collected per month (chart plus a table view), subscriptions by stage, overdue invoices, recurring revenue by plan, renewals coming up and the latest payments. Every number links to the matching filtered list.
+
+### Customer portal
+- Customers see only their own subscriptions and invoices (anything else returns "not found").
+- Accept or decline quotations, pause/resume, renew or close a subscription when its plan allows it, and switch add-ons on or off.
+- View, print and pay invoices (the "Pay now" button records a test payment; no real gateway is connected).
+
 ## Project structure
 
 ```
