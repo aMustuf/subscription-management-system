@@ -141,6 +141,9 @@ def register_template_helpers(app: Flask) -> None:
     app.jinja_env.filters["money"] = format_money
     app.jinja_env.filters["date"] = format_date
     app.jinja_env.filters["datetime"] = format_datetime
+    # Globals are also visible inside imported macros (context processors are not)
+    app.jinja_env.globals["page_args"] = page_args
+    app.jinja_env.globals["endpoint_exists"] = lambda endpoint: endpoint in app.view_functions
 
     @app.context_processor
     def inject_globals():

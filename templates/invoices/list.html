@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block content %}
+{% call m.page_head("Invoices", "Created from subscriptions. See at a glance what's paid, what's outstanding and what's overdue.") %}
+  <a class="btn btn-primary" href="{{ url_for('billing.run') }}"><i class="bi bi-lightning-charge" aria-hidden="true"></i> Run billing</a>
+{% endcall %}
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Invoices</div><div class="kpi-value">{{ "{:,}".format(summary.count) }}</div><div class="kpi-note">in this view, not counting cancelled</div></div>
+  <div class="kpi"><div class="kpi-label">Invoiced</div><div class="kpi-value">{{ summary.total|money }}</div></div>
+  <div class="kpi"><div class="kpi-label">Collected</div><div class="kpi-value">{{ summary.paid|money }}</div></div>
+  <div class="kpi"><div class="kpi-label">Still owed</div><div class="kpi-value {{ 'bad' if status == 'overdue' and summary.due|float > 0 }}">{{ summary.due|money }}</div></div>
+</div>
+<section class="panel">
+  <nav class="d-flex flex-wrap gap-2 px-3 pt-3" aria-label="Filter by status">
+    {% for key, text in filters.items() %}
+    <a class="btn btn-sm {{ 'btn-primary' if status == key else 'btn-light' }}" href="{{ url_for('invoices.index', **page_args(status=key or None, page=None)) }}">{{ text }}</a>
+    {% endfor %}
+  </nav>
+  <form class="filters" method="get" role="search">
+    <input type="hidden" name="status" value="{{ status }}">
+    <div class="grow"><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Invoice number or customer"></div>
+    <div><label class="form-label" for="from">Invoice date from</label><input class="form-control" type="date" id="from" name="from" value="{{ date_from }}"></div>
+    <div><label class="form-label" for="to">to</label><input class="form-control" type="date" id="to" name="to" value="{{ date_to }}"></div>
+    <button class="btn btn-outline-primary" type="submit">Filter</button>
+    {% if q or date_from or date_to %}<a class="btn btn-light" href="{{ url_for('invoices.index', status=status or None) }}">Clear</a>{% endif %}
+  </form>
+  {% if pagination.items %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Number</th><th>Customer</th><th>Invoice date</th><th>Due</th><th>Status</th><th class="num">Total</th><th class="num">Due now</th></tr></thead>
+      <tbody>
+      {% for inv in pagination.items %}
+        <tr>
+          <td><a class="row-link mono-id" href="{{ url_for('invoices.detail', invoice_id=inv.id) }}">{{ inv.number }}</a>{% if inv.subscription %}<span class="cell-sub">{{ inv.subscription.number }}</span>{% endif %}</td>
+          <td>{{ inv.customer.display_name }}</td>
+          <td class="text-nowrap">{{ inv.invoice_date|date }}</td>
+          <td class="text-nowrap">{{ inv.due_date|date }}{% if inv.is_overdue %}<span class="cell-sub text-danger">{{ inv.days_overdue }} days late</span>{% endif %}</td>
+          <td>{{ m.invoice_status(inv) }}{% if inv.sent_at %} <i class="bi bi-envelope-check text-muted" title="Emailed {{ inv.sent_at|datetime }}" aria-label="Emailed"></i>{% endif %}</td>
+          <td class="num">{{ inv.amount_total|money }}</td>
+          <td class="num">{{ inv.amount_due|money }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pager(pagination, "invoices") }}
+  {% else %}
+    {{ m.empty("receipt", "No invoices here", "Run billing to create invoices for every subscription that's due.", url_for('billing.run'), "Run billing") }}
+  {% endif %}
+</section>
+{% endblock %}

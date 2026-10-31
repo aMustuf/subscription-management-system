@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Payments{% endblock %}
+{% block content %}
+{{ m.page_head("Payments", "Money received, each one matched to its invoice. Record new payments from the invoice page.") }}
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Received in this view</div><div class="kpi-value">{{ total|money }}</div><div class="kpi-note">{{ "{:,}".format(pagination.total) }} payments</div></div>
+  {% for key, text in PAYMENT_METHODS.items() if by_method.get(key) %}
+    {% if loop.index <= 3 %}<div class="kpi"><div class="kpi-label">{{ text }}</div><div class="kpi-value">{{ by_method[key]|money }}</div></div>{% endif %}
+  {% endfor %}
+</div>
+<section class="panel">
+  <form class="filters" method="get" role="search">
+    <div class="grow"><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Payment, invoice, customer or reference"></div>
+    <div><label class="form-label" for="method">Method</label>
+      <select class="form-select" id="method" name="method" data-autosubmit>
+        <option value="">All methods</option>
+        {% for key, text in PAYMENT_METHODS.items() %}<option value="{{ key }}" {{ 'selected' if method == key }}>{{ text }}</option>{% endfor %}
+      </select></div>
+    <div><label class="form-label" for="from">From</label><input class="form-control" type="date" id="from" name="from" value="{{ date_from }}"></div>
+    <div><label class="form-label" for="to">To</label><input class="form-control" type="date" id="to" name="to" value="{{ date_to }}"></div>
+    <button class="btn btn-outline-primary" type="submit">Filter</button>
+  </form>
+  {% if pagination.items %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Payment</th><th>Date</th><th>Customer</th><th>Invoice</th><th>Method</th><th>Note</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+      {% for p in pagination.items %}
+        <tr>
+          <td class="mono-id">{{ p.number }}{% if p.reference %}<span class="cell-sub">Ref {{ p.reference }}</span>{% endif %}</td>
+          <td class="text-nowrap">{{ p.payment_date|date }}</td>
+          <td>{{ p.invoice.customer.display_name }}</td>
+          <td><a class="row-link mono-id" href="{{ url_for('invoices.detail', invoice_id=p.invoice_id) }}">{{ p.invoice.number }}</a></td>
+          <td>{{ p.method_label }}</td>
+          <td class="small text-muted">{{ p.note or "—" }}</td>
+          <td class="num">{{ p.amount|money }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pager(pagination, "payments") }}
+  {% else %}
+    {{ m.empty("cash-coin", "No payments match", "Open an outstanding invoice to record a payment against it.", url_for('invoices.index', status='outstanding'), "Outstanding invoices") }}
+  {% endif %}
+</section>
+{% endblock %}

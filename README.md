@@ -58,6 +58,18 @@ On macOS/Linux use `python3 -m venv .venv`, then `.venv/bin/python` in place of 
 - Confirmed subscriptions start automatically on their start date; expired ones on auto-close plans close on their own.
 - "Send quotation" emails the customer a summary; expired quotations can't be confirmed.
 
+### Billing
+- **Billing run**: one click invoices every active subscription that is due, with customer details, product lines, discounts and taxes filled in. Missed periods are caught up.
+- **Nothing billed twice, nothing skipped**: one invoice per subscription period, checked in code and enforced by a unique database index (cancelled invoices excluded). Cancelling the latest invoice makes its period billable again.
+- Monthly periods are counted from the start date, so a subscription that starts on the 31st keeps billing at month end.
+- **Taxes** are calculated per line from the admin's rules. **Discounts** apply on their own when their rules match (dates, minimum purchase or quantity, products) and stop when they expire or reach their usage limit.
+- Invoices move **Draft → Confirmed → Paid** (or Cancelled). The team can confirm, cancel, send (email) and print (save as PDF from the browser).
+
+### Payments
+- Record payments with method, amount, date, reference and note against the right invoice. Part payments are supported; overpaying is blocked.
+- Invoice lists filter by paid, outstanding and overdue, with totals for invoiced, collected and still owed.
+- **Email outbox**: every email the system sends (reset links, invites, quotations, invoices) is listed in the app.
+
 ## Project structure
 
 ```

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from extensions import db
@@ -119,7 +119,7 @@ def seed_demo_data(bulk: int = 0) -> None:
     # --- Discounts (admin only) ----------------------------------------------
     db.session.add_all([
         Discount(name="Bulk seats 10%", discount_type="percent", value=Decimal("10"), min_quantity=10,
-                 applies_to="subscription", start_date=today - timedelta(days=60), end_date=today + timedelta(days=90),
+                 applies_to="subscription", start_date=today - timedelta(days=90), end_date=today + timedelta(days=90),
                  usage_limit=100, created_by=admin),
         Discount(name="Festive ₹500 off CRM", discount_type="fixed", value=Decimal("500"), min_purchase=Decimal("2000"),
                  applies_to="products", products=[crm], start_date=today - timedelta(days=15),
@@ -211,35 +211,88 @@ def _seed_activity(customers, admin, bulk):
 
     c = customers
     month_start = today.replace(day=1)
-    four_months_ago = add_periods(month_start, "monthly", -4)
-    make(c[0], "Monthly Standard", four_months_ago,
-         [line(crm, 3, crm_plain), line(products["Extra storage (50 GB)"], 1)], "active", terms=15)
+    last_month_end = month_start - timedelta(days=1)
+    yesterday = today - timedelta(days=1)
+    history = []  # (subscription, bill periods up to this date, unpaid invoices at the end, part payment)
+
+    s = make(c[0], "Monthly Standard", add_periods(month_start, "monthly", -4),
+             [line(crm, 3, crm_plain), line(products["Extra storage (50 GB)"], 1)], "active", terms=15)
+    history.append((s, last_month_end, 1, None))
     make(c[0], "Monthly Standard", today + timedelta(days=3),
          [line(accounting, 2, acc_std), line(products["Inventory add-on"], 1),
           line(products["Barcode scanner (rental)"], 2)], "quotation", template=templates["Retail Store Kit"],
          valid_until=today + timedelta(days=8), note="For the new Thalassery branch.")
-    make(c[1], "Yearly Business", today - timedelta(days=200),
-         [line(crm, 12, crm_odoo), line(accounting, 5, acc_pro)], "active", terms=30)
-    make(c[2], "Monthly Standard", add_periods(month_start, "monthly", -3),
-         [line(accounting, 4, acc_std), line(products["Inventory add-on"], 1),
-          line(products["Barcode scanner (rental)"], 3)], "active", terms=7)
-    make(c[3], "Weekly Trial", today - timedelta(days=10), [line(crm, 1, crm_plain)], "active", terms=0)
-    make(c[4], "Monthly Standard", add_periods(month_start, "monthly", -2),
-         [line(crm, 2, crm_plain)], "paused", terms=15)
-    make(c[5], "Monthly Standard", add_periods(today, "monthly", -2),
-         [line(crm, 12, crm_odoo), line(products["Priority support"], 1)], "active", terms=15)
-    make(c[6], "Daily Pay-as-you-go", today - timedelta(days=4), [line(crm, 2, crm_plain)], "active", terms=0)
+    s = make(c[1], "Yearly Business", today - timedelta(days=200),
+             [line(crm, 12, crm_odoo), line(accounting, 5, acc_pro)], "active", terms=30)
+    history.append((s, yesterday, 0, None))
+    s = make(c[2], "Monthly Standard", add_periods(month_start, "monthly", -3),
+             [line(accounting, 4, acc_std), line(products["Inventory add-on"], 1),
+              line(products["Barcode scanner (rental)"], 3)], "active", terms=7)
+    history.append((s, last_month_end, 1, Decimal("2000")))
+    s = make(c[3], "Weekly Trial", today - timedelta(days=10), [line(crm, 1, crm_plain)], "active", terms=0)
+    history.append((s, yesterday, 1, None))
+    s = make(c[4], "Monthly Standard", add_periods(month_start, "monthly", -2),
+             [line(crm, 2, crm_plain)], "paused", terms=15)
+    history.append((s, last_month_end, 0, None))
+    s = make(c[5], "Monthly Standard", add_periods(today, "monthly", -2),
+             [line(crm, 12, crm_odoo), line(products["Priority support"], 1)], "active", terms=15)
+    history.append((s, yesterday, 0, None))
+    s = make(c[6], "Daily Pay-as-you-go", today - timedelta(days=4), [line(crm, 2, crm_plain)], "active", terms=0)
+    history.append((s, today - timedelta(days=2), 0, None))
     make(c[7], "Yearly Business", today + timedelta(days=14),
          [line(crm, 20, crm_odoo), line(accounting, 10, acc_pro), line(products["Priority support"], 1)],
          "draft", template=templates["Enterprise Suite"], valid_until=today + timedelta(days=30))
     make(c[8], "Monthly Standard", today + timedelta(days=5),
          [line(crm, 4, crm_plain), line(products["Priority support"], 1)], "confirmed", terms=15)
-    make(c[9], "Monthly Standard", add_periods(month_start, "monthly", -5),
-         [line(accounting, 1, acc_std)], "closed", reason="Moved to an annual contract")
-    make(c[10], "Yearly Business", add_periods(today, "yearly", -1),
-         [line(crm, 6, crm_plain)], "active", expiry=today - timedelta(days=1), terms=30)
-    make(c[11], "Monthly Standard", add_periods(today, "monthly", -1) + timedelta(days=2),
-         [line(crm, 2, crm_plain)], "active", terms=15)
+    s = make(c[9], "Monthly Standard", add_periods(month_start, "monthly", -5),
+             [line(accounting, 1, acc_std)], "closed", reason="Moved to an annual contract")
+    history.append((s, last_month_end, 0, None))
+    s = make(c[10], "Yearly Business", add_periods(today, "yearly", -1),
+             [line(crm, 6, crm_plain)], "active", expiry=yesterday, terms=30)
+    history.append((s, yesterday, 0, None))
+    s = make(c[11], "Monthly Standard", add_periods(today, "monthly", -1),
+             [line(crm, 2, crm_plain)], "active", terms=15)
+    history.append((s, today - timedelta(days=2), 0, None))
+    db.session.commit()
+
+    _seed_billing_history(history, today)
+
+
+def _seed_billing_history(history, today):
+    """Past invoices and payments, created by the real billing code on the dates they happened."""
+    from services.billing import bill_next_period, confirm_invoice, record_payment
+
+    methods = ["bank_transfer", "upi", "card", "bank_transfer", "upi", "cheque"]
+    counter = 0
+    for sub, until, unpaid, part_payment in history:
+        real_status = sub.status
+        sub.status = "active"  # bill the months it was running
+        created = []
+        while sub.next_invoice_date and sub.next_invoice_date <= until:
+            day = sub.next_invoice_date
+            if sub.expiry_date and day > sub.expiry_date:
+                break
+            invoice = bill_next_period(sub, today=day)
+            stamp = datetime.combine(day, time(9, 30))
+            invoice.created_at = stamp
+            confirm_invoice(invoice)
+            invoice.confirmed_at = invoice.sent_at = stamp + timedelta(minutes=10)
+            for entry in sub.logs:
+                if entry.message.startswith(f"Invoice {invoice.number}"):
+                    entry.created_at = stamp
+            created.append(invoice)
+        sub.status = real_status
+        to_pay = created[: len(created) - unpaid] if unpaid else created
+        for invoice in to_pay:
+            paid_on = min(invoice.invoice_date + timedelta(days=2 + counter % 9), today)
+            record_payment(invoice, invoice.amount_due, methods[counter % len(methods)], paid_on,
+                           reference=f"UTR{748200 + counter * 37}")
+            invoice.paid_at = datetime.combine(paid_on, time(16, 0))
+            counter += 1
+        if part_payment and unpaid and created:
+            invoice = created[-1]
+            record_payment(invoice, part_payment, "upi", min(invoice.invoice_date + timedelta(days=5), today),
+                           reference=f"UTR{748200 + counter * 37}", note="Part payment. Rest promised next week.")
     db.session.commit()
 
 

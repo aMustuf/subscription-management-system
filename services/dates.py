@@ -26,9 +26,26 @@ def add_periods(day: date, period: str, count: int = 1) -> date:
     raise ValueError(f"Unknown billing period: {period}")
 
 
-def period_end(start: date, period: str) -> date:
+def next_period_start(anchor: date, current: date, period: str) -> date:
+    """Start of the period after `current`, counted from the subscription's start date.
+
+    Counting from the anchor keeps a subscription that starts on 31 Jan billing
+    on the 31st (or the month's last day) instead of drifting to the 28th.
+    """
+    if period in ("daily", "weekly") or anchor is None or current < anchor:
+        return add_periods(current, period, 1)
+    step, candidate = 0, anchor
+    while candidate < current and step < 5000:
+        step += 1
+        candidate = add_periods(anchor, period, step)
+    if candidate == current:
+        return add_periods(anchor, period, step + 1)
+    return add_periods(current, period, 1)
+
+
+def period_end(start: date, period: str, anchor: date | None = None) -> date:
     """Last day covered by a billing period that starts on `start`."""
-    return add_periods(start, period, 1) - timedelta(days=1)
+    return next_period_start(anchor or start, start, period) - timedelta(days=1)
 
 
 def periods_between(start: date, end: date, period: str) -> int:

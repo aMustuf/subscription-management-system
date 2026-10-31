@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Billing run{% endblock %}
+{% block content %}
+{{ m.page_head("Billing run", "Creates an invoice for every active subscription that's due, with customer details, lines, discounts and taxes filled in. Each period is billed exactly once.") }}
+
+{% if result %}
+<section class="panel">
+  <div class="panel-header"><h2 class="panel-title">Result for {{ result.run_date|date }}</h2>
+    <span class="text-muted small">{{ result.invoices|length }} invoice(s), {{ result.total|money }} in total</span></div>
+  {% if result.invoices %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>Invoice</th><th>Customer</th><th>Subscription</th><th>Period</th><th>Discounts</th><th>Status</th><th class="num">Total</th></tr></thead>
+      <tbody>
+      {% for inv in result.invoices %}
+        <tr>
+          <td><a class="row-link mono-id" href="{{ url_for('invoices.detail', invoice_id=inv.id) }}">{{ inv.number }}</a></td>
+          <td>{{ inv.customer.display_name }}</td>
+          <td class="mono-id">{{ inv.subscription.number }}</td>
+          <td class="text-nowrap small">{{ inv.period_start|date }} to {{ inv.period_end|date }}</td>
+          <td class="small">{% for d in inv.applied_discounts %}<span class="tag tag-on">{{ d.name }}</span> {% else %}<span class="text-muted">—</span>{% endfor %}</td>
+          <td>{{ m.invoice_status(inv) }}</td>
+          <td class="num">{{ inv.amount_total|money }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if result.skipped %}
+  <div class="panel-footer small">
+    <div class="fw-semibold mb-1">Skipped</div>
+    {% for sub, reason in result.skipped %}<div>{{ sub.number }}: {{ reason }}</div>{% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<div class="row g-3 mt-0">
+  <div class="col-lg-5">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Run billing</h2></div>
+      <div class="panel-body">
+        <p class="fs-5 mb-1"><span class="fw-bold">{{ preview.count }}</span> subscription{{ "s" if preview.count != 1 }} due today</p>
+        <p class="text-muted small">Missed periods are caught up, so nothing is skipped. Periods that already have an invoice are left alone, so nothing is billed twice.</p>
+        {{ m.form_errors(form) }}
+        <form method="post" novalidate>
+          {{ m.csrf() }}
+          {{ m.input(form, "run_date", "Bill everything due up to", type="date", required=True, attrs={"max": today.isoformat()}) }}
+          {{ m.checkbox(form, "auto_confirm", "Confirm the new invoices straight away", help="Leave off to review drafts first.") }}
+          <button class="btn btn-marigold w-100 mt-2" type="submit"><i class="bi bi-lightning-charge" aria-hidden="true"></i> Create invoices</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-lg-7">
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Due now</h2></div>
+      {% if preview.sample %}
+      <div class="table-responsive">
+        <table class="table table-app">
+          <thead><tr><th>Subscription</th><th>Customer</th><th>Plan</th><th>Billing date</th><th class="num">Per period</th></tr></thead>
+          <tbody>
+          {% for s in preview.sample %}
+            <tr>
+              <td><a class="row-link mono-id" href="{{ url_for('subscriptions.detail', sub_id=s.id) }}">{{ s.number }}</a></td>
+              <td>{{ s.customer.display_name }}</td><td>{{ s.plan.name }}</td>
+              <td class="text-nowrap">{{ s.next_invoice_date|date }}</td>
+              <td class="num">{{ s.amount_total|money }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if preview.count > preview.sample|length %}<div class="pager">Showing the first {{ preview.sample|length }} of {{ "{:,}".format(preview.count) }}</div>{% endif %}
+      {% else %}
+        {{ m.empty("check2-circle", "All caught up", "Every active subscription is billed up to date.") }}
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

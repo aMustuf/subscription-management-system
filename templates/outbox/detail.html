@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ email.subject }}{% endblock %}
+{% block content %}
+{{ m.page_head(email.subject, None, [("Email outbox", url_for('outbox.index'))]) }}
+<section class="panel" style="max-width: 860px">
+  <div class="panel-header">
+    <div class="small"><span class="text-muted">To</span> {{ email.to_email }}<br><span class="text-muted">Sent</span> {{ email.created_at|datetime }}</div>
+    {{ m.status(email.status, {'sent': 'Sent', 'logged': 'Saved here', 'failed': 'Failed'}[email.status]) }}
+  </div>
+  <div class="panel-body">
+    {% if email.error %}<div class="alert alert-danger small">{{ email.error }}</div>{% endif %}
+    <div style="white-space: pre-wrap; max-width: 72ch">{{ email.body|urlize(target="_blank") }}</div>
+  </div>
+</section>
+{% endblock %}

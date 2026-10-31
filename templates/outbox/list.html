@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Email outbox{% endblock %}
+{% block content %}
+{{ m.page_head("Email outbox", "Every email the system sends: reset links, invites, quotations and invoices.") }}
+{% if not mail_on %}
+<div class="notice mb-3">Email sending isn't set up, so messages are saved here instead of being delivered. Add SMTP settings to <code>.env</code> to send real emails.</div>
+{% endif %}
+<section class="panel">
+  <nav class="d-flex flex-wrap gap-2 p-3 border-bottom" aria-label="Filter by kind">
+    <a class="btn btn-sm {{ 'btn-primary' if not kind else 'btn-light' }}" href="{{ url_for('outbox.index') }}">All</a>
+    {% for k in kinds %}<a class="btn btn-sm {{ 'btn-primary' if kind == k else 'btn-light' }}" href="{{ url_for('outbox.index', kind=k) }}">{{ k.replace('_', ' ')|capitalize }}</a>{% endfor %}
+  </nav>
+  {% if pagination.items %}
+  <div class="table-responsive">
+    <table class="table table-app table-hover">
+      <thead><tr><th>When</th><th>To</th><th>Subject</th><th>Kind</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for e in pagination.items %}
+        <tr>
+          <td class="text-nowrap small">{{ e.created_at|datetime }}</td>
+          <td>{{ e.to_email }}</td>
+          <td><a class="row-link" href="{{ url_for('outbox.detail', email_id=e.id) }}">{{ e.subject }}</a></td>
+          <td class="small">{{ e.kind.replace('_', ' ')|capitalize }}</td>
+          <td>{{ m.status(e.status, {'sent': 'Sent', 'logged': 'Saved here', 'failed': 'Failed'}[e.status]) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pager(pagination, "emails") }}
+  {% else %}
+    {{ m.empty("envelope", "No emails yet") }}
+  {% endif %}
+</section>
+{% endblock %}

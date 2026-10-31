@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.number }}{% endblock %}
+{% block content %}
+{% call m.page_head(invoice.number, (invoice.bill_to_company or invoice.bill_to_name), [("Invoices", url_for('invoices.index'))]) %}
+  {% if invoice.status == 'draft' %}
+  <form method="post" action="{{ url_for('invoices.act', invoice_id=invoice.id, action='confirm') }}">{{ m.csrf() }}<button class="btn btn-primary" type="submit">Confirm</button></form>
+  {% endif %}
+  {% if invoice.status != 'cancelled' %}
+  <form method="post" action="{{ url_for('invoices.act', invoice_id=invoice.id, action='send') }}">{{ m.csrf() }}<button class="btn btn-outline-primary" type="submit"><i class="bi bi-envelope" aria-hidden="true"></i> {{ "Resend" if invoice.sent_at else "Send" }}{% if invoice.status == 'draft' %} (confirms it){% endif %}</button></form>
+  {% endif %}
+  <a class="btn btn-outline-primary" href="{{ url_for('invoices.print_view', invoice_id=invoice.id) }}" target="_blank" rel="noopener"><i class="bi bi-printer" aria-hidden="true"></i> Print</a>
+  {% if invoice.status in ('draft', 'confirmed') and invoice.amount_paid|float == 0 %}
+  <form method="post" action="{{ url_for('invoices.act', invoice_id=invoice.id, action='cancel') }}" data-confirm="Cancel {{ invoice.number }}? This can't be undone.">{{ m.csrf() }}<button class="btn btn-outline-danger" type="submit">Cancel invoice</button></form>
+  {% endif %}
+{% endcall %}
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <section class="panel">{% include "invoices/_document.html" %}</section>
+  </div>
+  <div class="col-xl-4">
+    {% if invoice.status == 'confirmed' %}
+    <section class="panel" id="record-payment">
+      <div class="panel-header"><h2 class="panel-title">Record a payment</h2><span class="text-muted small">{{ invoice.amount_due|money }} due</span></div>
+      <div class="panel-body">
+        {{ m.form_errors(payment_form) }}
+        <form method="post" action="{{ url_for('invoices.add_payment', invoice_id=invoice.id) }}" novalidate>
+          {{ m.csrf() }}
+          {{ m.input(payment_form, "amount", "Amount", type="number", required=True, prefix="₹", attrs={"min": "0.01", "step": "0.01", "max": invoice.amount_due}) }}
+          <div class="row">
+            <div class="col-sm-6 col-xl-12 col-xxl-6">{{ m.select(payment_form, "method", "Method", methods.items()|list, required=True) }}</div>
+            <div class="col-sm-6 col-xl-12 col-xxl-6">{{ m.input(payment_form, "payment_date", "Date", type="date", required=True, attrs={"max": today.isoformat()}) }}</div>
+          </div>
+          {{ m.input(payment_form, "reference", "Reference", placeholder="UTR or cheque number", attrs={"maxlength": "80"}) }}
+          {{ m.textarea(payment_form, "note", "Note", rows=2, maxlength=1000) }}
+          <button class="btn btn-success w-100" type="submit">Record payment</button>
+        </form>
+      </div>
+    </section>
+    {% elif invoice.status == 'draft' %}
+    <div class="notice mb-3">This invoice is a draft. Check the lines, then <strong>Confirm</strong> it to make it payable, or <strong>Send</strong> it to confirm and email it in one step.</div>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Payments</h2><span class="text-muted small">{{ invoice.amount_paid|money }} received</span></div>
+      {% if invoice.payments %}
+      <ul class="list-group list-group-flush">
+        {% for p in invoice.payments %}
+        <li class="list-group-item d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-semibold">{{ p.amount|money }} <span class="text-muted fw-normal">by {{ p.method_label }}</span></div>
+            <div class="small text-muted">{{ p.payment_date|date }}, {{ p.number }}{% if p.reference %}, ref {{ p.reference }}{% endif %}</div>
+            {% if p.note %}<div class="small">{{ p.note }}</div>{% endif %}
+          </div>
+          {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('payments.delete', payment_id=p.id) }}" data-confirm="Remove payment {{ p.number }}? The invoice will show the amount as due again.">
+            {{ m.csrf() }}<button class="btn btn-sm btn-light" type="submit" aria-label="Remove payment {{ p.number }}"><i class="bi bi-trash" aria-hidden="true"></i></button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+        <div class="panel-body text-muted small">No payments yet.</div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2 class="panel-title">Activity</h2></div>
+      <div class="panel-body">
+        <ul class="timeline">
+          {% if invoice.cancelled_at %}<li>Cancelled<div class="when">{{ invoice.cancelled_at|datetime }}</div></li>{% endif %}
+          {% if invoice.paid_at %}<li>Paid in full<div class="when">{{ invoice.paid_at|datetime }}</div></li>{% endif %}
+          {% if invoice.sent_at %}<li>Emailed to {{ invoice.bill_to_email }}<div class="when">{{ invoice.sent_at|datetime }}</div></li>{% endif %}
+          {% if invoice.confirmed_at %}<li>Confirmed<div class="when">{{ invoice.confirmed_at|datetime }}</div></li>{% endif %}
+          <li>Created from {{ invoice.subscription.number if invoice.subscription else "manual entry" }}<div class="when">{{ invoice.created_at|datetime }}</div></li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

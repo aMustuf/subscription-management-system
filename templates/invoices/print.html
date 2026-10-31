@@ -1,0 +1,21 @@
+{% import "_macros.html" as m %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ invoice.number }} | {{ company.name }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="print-page">
+  <div class="print-toolbar">
+    <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer" aria-hidden="true"></i> Print or save as PDF</button>
+    <button class="btn btn-light" type="button" onclick="window.close()">Close</button>
+  </div>
+  <main class="print-sheet">
+    {% include "invoices/_document.html" %}
+  </main>
+</body>
+</html>

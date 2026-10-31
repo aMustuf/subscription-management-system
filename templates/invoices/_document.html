@@ -1,0 +1,72 @@
+{# The invoice itself. Used on the staff page, the customer portal and the print view. #}
+<article class="invoice-doc">
+  <header class="invoice-top">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-2">{{ m.brand_mark() }}<strong class="fs-5">{{ company.name }}</strong></div>
+      <div class="small text-muted">{{ company.address }}<br>{{ company.email }}<br>GSTIN {{ company.gstin }}</div>
+    </div>
+    <div class="text-sm-end">
+      <div class="invoice-title">Invoice</div>
+      <div class="mono-id fs-5">{{ invoice.number }}</div>
+      <div class="mt-1">{{ m.invoice_status(invoice) }}</div>
+    </div>
+  </header>
+
+  <div class="invoice-meta">
+    <div>
+      <div class="meta-label">Bill to</div>
+      <div class="fw-semibold">{{ invoice.bill_to_company or invoice.bill_to_name }}</div>
+      {% if invoice.bill_to_company %}<div>{{ invoice.bill_to_name }}</div>{% endif %}
+      <div>{{ invoice.bill_to_email }}</div>
+      {% if invoice.bill_to_address %}<div class="text-muted small">{{ invoice.bill_to_address }}</div>{% endif %}
+      {% if invoice.bill_to_gstin %}<div class="small">GSTIN {{ invoice.bill_to_gstin }}</div>{% endif %}
+    </div>
+    <dl class="facts">
+      <dt>Invoice date</dt><dd>{{ invoice.invoice_date|date }}</dd>
+      <dt>Due date</dt><dd>{{ invoice.due_date|date }}{% if invoice.is_overdue %} <span class="text-danger small">({{ invoice.days_overdue }} days late)</span>{% endif %}</dd>
+      {% if invoice.period_start %}<dt>Service period</dt><dd>{{ invoice.period_start|date }} to {{ invoice.period_end|date }}</dd>{% endif %}
+      {% if invoice.subscription %}<dt>Subscription</dt><dd>{{ invoice.subscription.number }} ({{ invoice.subscription.plan.name }})</dd>{% endif %}
+    </dl>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-app invoice-lines">
+      <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Discount</th><th>Tax</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for line in invoice.lines %}
+        <tr>
+          <td>{{ line.description }}</td>
+          <td class="num">{{ line.quantity }}</td>
+          <td class="num">{{ line.unit_price|money }}</td>
+          <td class="num">{% if line.discount_amount|float > 0 %}-{{ line.discount_amount|money }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="text-nowrap">{{ line.tax_name or "No tax" }}{% if line.tax_name %}<span class="cell-sub">{{ line.tax_amount|money }}</span>{% endif %}</td>
+          <td class="num">{{ (line.amount - line.discount_amount)|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="invoice-bottom">
+    <div class="small">
+      {% if invoice.applied_discounts %}
+      <div class="meta-label">Discounts applied automatically</div>
+      <ul class="list-unstyled mb-3">
+        {% for d in invoice.applied_discounts %}<li><i class="bi bi-tag" aria-hidden="true"></i> {{ d.name }}: -{{ d.amount|money }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% if invoice.notes %}<div class="meta-label">Notes</div><p class="text-muted">{{ invoice.notes }}</p>{% endif %}
+      <div class="meta-label">How to pay</div>
+      <p class="text-muted mb-0">Bank transfer or UPI to {{ company.name }}. Quote {{ invoice.number }} as the reference.</p>
+    </div>
+    <table class="totals">
+      <tr><td class="text-muted">Subtotal</td><td>{{ invoice.amount_untaxed|money }}</td></tr>
+      {% if invoice.amount_discount|float > 0 %}<tr><td class="text-muted">Discounts</td><td>-{{ invoice.amount_discount|money }}</td></tr>{% endif %}
+      <tr><td class="text-muted">Taxable amount</td><td>{{ invoice.amount_taxable|money }}</td></tr>
+      <tr><td class="text-muted">Tax</td><td>{{ invoice.amount_tax|money }}</td></tr>
+      <tr class="grand"><td>Total</td><td>{{ invoice.amount_total|money }}</td></tr>
+      {% if invoice.amount_paid|float > 0 %}<tr><td class="text-muted">Paid</td><td>-{{ invoice.amount_paid|money }}</td></tr>{% endif %}
+      {% if invoice.status != 'cancelled' %}<tr><td class="fw-semibold">Amount due</td><td class="fw-semibold">{{ invoice.amount_due|money }}</td></tr>{% endif %}
+    </table>
+  </div>
+</article>
