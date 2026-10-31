@@ -1,0 +1,6 @@
+# Keep line endings consistent between Windows and other systems
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.woff binary
+*.woff2 binary

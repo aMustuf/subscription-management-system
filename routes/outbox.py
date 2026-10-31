@@ -1,6 +1,8 @@
 """Email outbox: every email the system sent (or saved, when email isn't set up)."""
 from __future__ import annotations
 
+import re
+
 from flask import Blueprint, abort, current_app, render_template, request
 
 from extensions import db
@@ -26,10 +28,19 @@ def index():
                            mail_on=email_enabled())
 
 
+SECRET_KINDS = ("password_reset", "invite")
+
+
 @bp.route("/<int:email_id>")
 @staff_required
 def detail(email_id):
     email = db.session.get(EmailLog, email_id)
     if email is None:
         abort(404)
-    return render_template("outbox/detail.html", email=email)
+    body = email.body
+    hidden = False
+    if email_enabled() and email.kind in SECRET_KINDS:
+        # Once real email is on, nobody needs to see someone else's password link here
+        body = re.sub(r"https?://\S+", "[link hidden: it was emailed to the recipient]", body)
+        hidden = True
+    return render_template("outbox/detail.html", email=email, body=body, hidden=hidden)

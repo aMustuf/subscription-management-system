@@ -9,7 +9,7 @@
   </div>
   <div class="panel-body">
     {% if email.error %}<div class="alert alert-danger small">{{ email.error }}</div>{% endif %}
-    <div style="white-space: pre-wrap; max-width: 72ch">{{ email.body|urlize(target="_blank") }}</div>
+    <div style="white-space: pre-wrap; max-width: 72ch">{{ body|urlize(target="_blank") }}</div>
   </div>
 </section>
 {% endblock %}

@@ -2,7 +2,28 @@
 
 One system to run plans, subscriptions and recurring billing for **Brightloop Software**, built for the Odoo x Make-A-Ton 9.0 hackathon (virtual round).
 
-**Stack:** Python, Flask, SQLite (through SQLAlchemy), Bootstrap 5. All CSS, JS and fonts are stored in the repo, so the app runs offline.
+**Stack:** Python, Flask, SQLite (through SQLAlchemy), Bootstrap 5, Chart.js. All CSS, JS and fonts are stored in the repo, so the app runs offline.
+
+| Finance dashboard | Subscription lifecycle |
+|---|---|
+| ![Dashboard](docs/screenshots/02-dashboard.png) | ![Subscription](docs/screenshots/03-subscription.png) |
+| **Billing run with automatic discounts** | **Invoice with taxes and discounts** |
+| ![Billing run](docs/screenshots/04-billing-run.png) | ![Invoice](docs/screenshots/05-invoice.png) |
+| **Customer portal** | **Log in** |
+| ![Customer portal](docs/screenshots/06-customer-portal.png) | ![Log in](docs/screenshots/01-login.png) |
+
+## The brief, scene by scene
+
+| Scene in the problem statement | Where it lives in the app |
+|---|---|
+| A new customer signs up (unique email, password rules, reset link, roles) | Create an account, Forgot password, Team (admin only) |
+| Launching a new plan (product, variants such as Odoo +560, plan price, period, minimum quantity, dates, close/pause/renew rules) | Products, Plans |
+| Turning a quote into a subscription (templates with validity, numbered subscriptions, Draft → Quotation → Confirmed → Active → Closed) | Quotation templates, Subscriptions |
+| Billing day (invoices created from subscriptions, automatic taxes, confirm/cancel/send/print, never billed twice or skipped) | Billing run, Invoices |
+| A customer asks for a better price (admin-only discount rules that apply on their own and stop when expired or used up) | Discounts, then any invoice |
+| The money comes in (method, amount, date, note; paid vs outstanding vs overdue) | Invoice page, Payments, Invoices filters |
+| The finance lead at month end (active subscriptions, revenue, payments, overdue, filters, summary, under 2 seconds with thousands of rows) | Dashboard, Reports, `seed.py --bulk 3000` |
+| Customers manage their own subscriptions | Customer portal |
 
 ## Run it (Windows)
 
@@ -113,6 +134,21 @@ How: every list is paginated, totals are computed in SQL (not Python loops), for
 
 24 tests cover the brief's rules: password rules, unique emails, one-time reset links, role access, the Odoo +560 variant, plan minimums and availability, the subscription lifecycle, plan rules (pause/close), auto-close at expiry, no double billing (in code and in the database), re-billing after a cancel, automatic discounts and usage limits, tax totals, payments, portal privacy, and month-end billing dates.
 
+## Real email (optional)
+
+Without settings, every email is saved to the in-app **Email outbox**, so the demo works offline. To send real emails (for example with Gmail):
+
+1. Turn on 2-Step Verification for the Google account, then create an **App password**.
+2. Copy `.env.example` to `.env` and fill in:
+   ```
+   MAIL_SERVER=smtp.gmail.com
+   MAIL_PORT=587
+   MAIL_USERNAME=you@gmail.com
+   MAIL_PASSWORD=your-16-character-app-password
+   MAIL_FROM=you@gmail.com
+   ```
+3. Restart the app. Reset links, invites, quotations, invoices and reminders now arrive by email (and are still listed in the outbox).
+
 ## Scheduled jobs (optional)
 
 Billing and reminders can run without anyone clicking, e.g. from Windows Task Scheduler or cron:
@@ -137,7 +173,9 @@ templates/        Jinja pages; _macros.html holds shared form/status pieces
 static/           CSS, JS, fonts and vendored Bootstrap
 ```
 
-## Data integrity
+## Data integrity and security
 - SQLite with foreign keys switched on, CHECK constraints (no negative prices, valid statuses, valid date ranges) and UNIQUE constraints (emails, document numbers).
 - Every form is validated on the server. Errors appear next to the field and the form keeps what was typed.
-- CSRF protection on every form.
+- CSRF protection on every form; passwords are hashed (scrypt); reset and invite links are signed, expire, and stop working once used.
+- Customers can only open their own records: anything else returns "not found".
+- Once real email is switched on, the Email outbox hides password links so staff can't use them.
